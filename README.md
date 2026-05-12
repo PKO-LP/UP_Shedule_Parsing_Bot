@@ -46,6 +46,15 @@ GET https://spo-13.mskobr.ru/v1/api/folder_and_file/list/30190
 url = BASE_URL + f['src']   # BASE_URL = 'https://spo-13.mskobr.ru'
 ```
 
+Например, для файла «1 курс» из Корпуса Бибирево (видно на скриншоте JSON выше):
+```
+f['src'] = "/attach_files/upload_users_files/6a01d0662714b.xlsx"
+
+url = "https://spo-13.mskobr.ru" + "/attach_files/upload_users_files/6a01d0662714b.xlsx"
+    = "https://spo-13.mskobr.ru/attach_files/upload_users_files/6a01d0662714b.xlsx"
+```
+👉 Открой этот URL в браузере — браузер скачает xlsx-файл с расписанием.
+
 ---
 
 В репозитории уже есть заготовка парсера — файл [`parser.py`](parser.py).  
