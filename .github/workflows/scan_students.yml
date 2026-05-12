@@ -9,7 +9,7 @@ on:
   workflow_dispatch:         # вручную
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   scan:
@@ -32,3 +32,11 @@ jobs:
           REPO_PATTERN: '^UP_06_\d{2}-\d{2}-\d{4}_[A-Za-z]+_[A-Za-z]+_32ISd$'
         run: |
           python scan_students.py
+
+      - name: Зафиксировать обновление таблицы студентов
+        run: |
+          git config user.name "teacher-bot[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --cached --quiet || git commit -m "auto: обновление таблицы студентов [skip ci]"
+          git push

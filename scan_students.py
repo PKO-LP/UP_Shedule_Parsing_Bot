@@ -18,6 +18,7 @@ import json
 import subprocess
 import tempfile
 import shutil
+import datetime
 from pathlib import Path
 
 import urllib.request
@@ -74,24 +75,32 @@ def get_student_repos() -> list[str]:
     return matched
 
 
-def process_repo(repo_name: str) -> None:
-    """Клонирует репо, запускает checker, коммитит REVIEW.md."""
+def process_repo(repo_name: str) -> dict | None:
+    """Клонирует репо, запускает checker, коммитит REVIEW.md. Возвращает dict со статусом."""
+    parts = repo_name.split('_')
+    first_name = parts[3] if len(parts) >= 5 else '?'
+    last_name  = parts[4] if len(parts) >= 5 else '?'
+
+    def make_result(status: str) -> dict:
+        return {'repo': repo_name, 'first_name': first_name,
+                'last_name': last_name, 'status': status}
+
     repo_url = f'https://x-access-token:{TOKEN}@github.com/{ORG}/{repo_name}.git'
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Клонируем
-        result = subprocess.run(
+        clone = subprocess.run(
             ['git', 'clone', '--depth=1', repo_url, tmpdir],
             capture_output=True, text=True
         )
-        if result.returncode != 0:
-            print(f'[{repo_name}] Ошибка клонирования: {result.stderr}')
-            return
+        if clone.returncode != 0:
+            print(f'[{repo_name}] Ошибка клонирования: {clone.stderr}')
+            return make_result('❓ Ошибка')
 
         parser_path = Path(tmpdir) / 'parser.py'
         if not parser_path.exists():
             print(f'[{repo_name}] parser.py не найден — пропускаем')
-            return
+            return make_result('⏳ Нет parser.py')
 
         # Копируем checker.py в папку репо
         shutil.copy(CHECKER_PATH, Path(tmpdir) / 'checker.py')
@@ -105,7 +114,7 @@ def process_repo(repo_name: str) -> None:
         review_path = Path(tmpdir) / 'REVIEW.md'
         if not review_path.exists():
             print(f'[{repo_name}] REVIEW.md не создан — пропускаем')
-            return
+            return make_result('❓ Ошибка')
 
         # Настраиваем git
         subprocess.run(['git', 'config', 'user.name', 'teacher-bot[bot]'],
@@ -117,6 +126,9 @@ def process_repo(repo_name: str) -> None:
         # Удаляем checker.py из репо студента (он там не нужен)
         (Path(tmpdir) / 'checker.py').unlink(missing_ok=True)
 
+        errors_word = 'ошибки' if check_result.returncode != 0 else 'OK'
+        status = '❌ Есть ошибки' if check_result.returncode != 0 else '✅ Сдано'
+
         # Коммитим REVIEW.md
         subprocess.run(['git', 'add', 'REVIEW.md'], cwd=tmpdir, capture_output=True)
         diff = subprocess.run(
@@ -125,9 +137,8 @@ def process_repo(repo_name: str) -> None:
         )
         if diff.returncode == 0:
             print(f'[{repo_name}] REVIEW.md не изменился')
-            return
+            return make_result(status)
 
-        errors_word = 'ошибки' if check_result.returncode != 0 else 'OK'
         commit_msg = f'auto-review: {errors_word} в parser.py [skip ci]'
         subprocess.run(['git', 'commit', '-m', commit_msg],
                        cwd=tmpdir, capture_output=True)
@@ -138,8 +149,54 @@ def process_repo(repo_name: str) -> None:
         else:
             print(f'[{repo_name}] ❌ Ошибка push: {push.stderr}')
 
+        return make_result(status)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
+
+def update_readme_table(results: list[dict]) -> None:
+    """Обновляет таблицу прогресса студентов в README.md основного репо."""
+    readme_path = Path(__file__).parent / 'README.md'
+    if not readme_path.exists():
+        return
+
+    content = readme_path.read_text(encoding='utf-8')
+
+    now = datetime.datetime.utcnow().strftime('%d.%m.%Y %H:%M UTC')
+    rows = []
+    for r in sorted(results, key=lambda x: x['last_name']):
+        repo_url = f'https://github.com/{ORG}/{r["repo"]}'
+        rows.append(
+            f'| {r["first_name"]} {r["last_name"]} '
+            f'| [{r["repo"]}]({repo_url}) '
+            f'| {r["status"]} |'
+        )
+
+    table = (
+        '| Студент | Репозиторий | Статус |\n'
+        '|---------|-------------|--------|\n'
+        + ('\n'.join(rows) + '\n' if rows else '')
+        + f'\n_Обновлено: {now}_'
+    )
+
+    new_section = (
+        '<!-- STUDENTS_TABLE_START -->\n'
+        + table
+        + '\n<!-- STUDENTS_TABLE_END -->'
+    )
+    new_content = re.sub(
+        r'<!-- STUDENTS_TABLE_START -->.*?<!-- STUDENTS_TABLE_END -->',
+        new_section,
+        content,
+        flags=re.DOTALL
+    )
+
+    if new_content != content:
+        readme_path.write_text(new_content, encoding='utf-8')
+        print('README.md: таблица студентов обновлена.')
+    else:
+        print('README.md: таблица студентов не изменилась.')
+
 
 def main() -> None:
     if not TOKEN:
@@ -149,11 +206,16 @@ def main() -> None:
     repos = get_student_repos()
     if not repos:
         print('Репозиториев студентов не найдено.')
+        update_readme_table([])
         return
 
+    results = []
     for repo in repos:
-        process_repo(repo)
+        r = process_repo(repo)
+        if r:
+            results.append(r)
 
+    update_readme_table(results)
     print('\nСканирование завершено.')
 
 
