@@ -10,7 +10,7 @@
 | Vlad Boryushin | [UP_06_12-05-2026_Vlad_Boryushin_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Vlad_Boryushin_32ISd) | ✅ Сдано |
 | Ivan Mikheev | [UP_06_12-05-2026_Ivan_Mikheev_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Ivan_Mikheev_32ISD) | ❌ Есть ошибки |
 
-_Обновлено: 12.05.2026 18:05 UTC_
+_Обновлено: 12.05.2026 21:23 UTC_
 <!-- STUDENTS_TABLE_END -->
 
 ---
