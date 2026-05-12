@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Автоматическая проверка parser.py студентов (UP_03/05/06).
+Автоматическая проверка parser.py студентов (UP_06).
+
+Формат задания: студент раскомментирует правильный вариант из двух.
+Checker проверяет через AST — какой вариант раскомментирован и верен ли он.
 
 Использование:
     python checker.py parser.py
 
 Выход:
-    0  — ошибок нет
-    1  — найдены ошибки (GitHub Actions покажет "failed")
+    0  — всё верно
+    1  — найдены ошибки
     Файл REVIEW.md создаётся/перезаписывается в рабочей папке.
 """
 
@@ -21,148 +24,219 @@ from datetime import datetime
 # ─────────────────────────────────────────────────────────────────────────────
 
 _errors: list[dict] = []
+_ok:     list[dict] = []
 
 
-def _add(num: int, line: int, found: str, expected: str, explanation: str) -> None:
-    _errors.append(
-        dict(num=num, line=line, found=found, expected=expected, explanation=explanation)
-    )
+def _add_err(step: str, line: int, found: str, expected: str, hint: str) -> None:
+    _errors.append(dict(step=step, line=line, found=found, expected=expected, hint=hint))
+
+
+def _add_ok(step: str, value: str) -> None:
+    _ok.append(dict(step=step, value=value))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AST-проверки
+# Вспомогательные функции для AST
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _source_line(lines: list[str], lineno: int) -> str:
-    try:
-        return lines[lineno - 1].strip()
-    except IndexError:
-        return '?'
+def _subscript_key(node: ast.Subscript) -> str | None:
+    """Возвращает строковый ключ подписки, если он есть."""
+    sl = node.slice
+    if isinstance(sl, ast.Constant) and isinstance(sl.value, str):
+        return sl.value
+    return None
 
 
-def _check_subscripts(tree: ast.AST) -> None:
-    """
-    Ошибки 2–3, 5: f[8491]  или  f["/attach_files/..."]
-    вместо f["id"] / f["src"].
-    """
-    seen_int = False
-    seen_path = False
-
+def _collect_subscript_keys(tree: ast.AST) -> list[tuple[int, str]]:
+    """Список (lineno, key) всех subscript-обращений к словарю по строке."""
+    result = []
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Subscript):
-            continue
-        sl = node.slice
-        if not isinstance(sl, ast.Constant):
-            continue
-
-        val = sl.value
-
-        if isinstance(val, int) and not seen_int:
-            seen_int = True
-            _add(
-                2, node.lineno,
-                found=f'f[{val}]',
-                expected='f["id"]',
-                explanation=(
-                    f'{val} — это значение ключа "id", а не имя ключа. '
-                    'Обращаться к словарю нужно по строковому имени: f["id"].'
-                ),
-            )
-
-        elif isinstance(val, str) and val.startswith('/') and not seen_path:
-            seen_path = True
-            short = val[:40] + ('...' if len(val) > 40 else '')
-            _add(
-                3, node.lineno,
-                found=f'f["{short}"]',
-                expected='f["src"]',
-                explanation=(
-                    f'"{short}" — это значение ключа "src", а не имя ключа. '
-                    'Правильно: f["src"].'
-                ),
-            )
+        if isinstance(node, ast.Subscript):
+            k = _subscript_key(node)
+            if k:
+                result.append((node.lineno, k))
+    return result
 
 
-def _check_get_with_int(tree: ast.AST) -> None:
-    """
-    Ошибка 4: f.get(8491, 'xlsx')  →  f.get("ext", "xlsx")
-    """
-    seen = False
+def _collect_get_keys(tree: ast.AST) -> list[tuple[int, str]]:
+    """Список (lineno, key) всех .get("key", ...) вызовов."""
+    result = []
     for node in ast.walk(tree):
-        if seen:
-            break
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        if not (isinstance(func, ast.Attribute) and func.attr == 'get'):
-            continue
-        if not node.args:
-            continue
-        first = node.args[0]
-        if isinstance(first, ast.Constant) and isinstance(first.value, int):
-            seen = True
-            _add(
-                4, node.lineno,
-                found=f'.get({first.value}, ...)',
-                expected='.get("ext", ...)',
-                explanation=(
-                    f'{first.value} — это значение, а не имя ключа. '
-                    'Правильно: f.get("ext", "xlsx").'
-                ),
-            )
+        if (isinstance(node, ast.Call) and
+                isinstance(node.func, ast.Attribute) and
+                node.func.attr == 'get' and
+                node.args):
+            first = node.args[0]
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                result.append((node.lineno, first.value))
+    return result
 
 
-def _check_id_in_title_search(tree: ast.AST) -> None:
-    """
-    Ошибка 1: 'расписание учебных' in str(folder["id"]).lower()
-    вместо    'расписание учебных' in folder["title"].lower()
+# ─────────────────────────────────────────────────────────────────────────────
+# Проверки по шагам
+# ─────────────────────────────────────────────────────────────────────────────
 
-    Ищем Compare, где в comparators есть Call(.lower()→Call(str()→Subscript("id")))
-    """
-    seen = False
+def _check_step1_page_id(tree: ast.AST) -> None:
+    """response.json()["data"]["id"]"""
+    keys = {k for _, k in _collect_subscript_keys(tree)}
+    if 'data' in keys and 'id' in keys:
+        _add_ok('Шаг 1', 'response.json()["data"]["id"]')
+    elif 'result' in keys:
+        _add_err('Шаг 1', 0,
+                 found='response.json()["result"]["id"]',
+                 expected='response.json()["data"]["id"]',
+                 hint='Верхний ключ ответа называется "data", а не "result". '
+                      'Раскомментируй вариант Б.')
+    else:
+        _add_err('Шаг 1', 0,
+                 found='(не найдено)',
+                 expected='response.json()["data"]["id"]',
+                 hint='Раскомментируй строку: page_id = response.json()["data"]["id"]')
+
+
+def _check_step2_folders(tree: ast.AST) -> None:
+    """response.json()["data"]["folders"]"""
+    keys = {k for _, k in _collect_subscript_keys(tree)}
+    if 'folders' in keys:
+        _add_ok('Шаг 2', 'response.json()["data"]["folders"]')
+    elif 'items' in keys:
+        _add_err('Шаг 2', 0,
+                 found='response.json()["data"]["items"]',
+                 expected='response.json()["data"]["folders"]',
+                 hint='Ключ называется "folders", а не "items". '
+                      'Раскомментируй вариант Б.')
+    else:
+        _add_err('Шаг 2', 0,
+                 found='(не найдено)',
+                 expected='response.json()["data"]["folders"]',
+                 hint='Раскомментируй строку: folders = response.json()["data"]["folders"]')
+
+
+def _check_step3_title(tree: ast.AST) -> None:
+    """folder["title"] в условии поиска папки"""
+    # Ищем Compare с .lower() внутри
     for node in ast.walk(tree):
-        if seen:
-            break
         if not isinstance(node, ast.Compare):
             continue
         for comp in node.comparators:
-            # comp должен быть: str(x["id"]).lower()  или  x["id"].lower()
             if not (isinstance(comp, ast.Call) and
                     isinstance(comp.func, ast.Attribute) and
                     comp.func.attr == 'lower'):
                 continue
+            inner = comp.func.value
+            # str(x["..."]).lower()  или  x["..."].lower()
+            sub = None
+            if (isinstance(inner, ast.Call) and
+                    isinstance(inner.func, ast.Name) and
+                    inner.func.id == 'str' and inner.args):
+                sub = inner.args[0]
+            elif isinstance(inner, ast.Subscript):
+                sub = inner
+            if sub and isinstance(sub, ast.Subscript):
+                k = _subscript_key(sub)
+                if k == 'title':
+                    _add_ok('Шаг 3', 'folder["title"]')
+                    return
+                elif k == 'id':
+                    _add_err('Шаг 3', node.lineno,
+                             found='folder["id"]',
+                             expected='folder["title"]',
+                             hint='"id" — это число (778), в нём нельзя найти текст '
+                                  '"расписание учебных". Раскомментируй вариант Б.')
+                    return
+    _add_err('Шаг 3', 0,
+             found='(не найдено)',
+             expected='folder["title"]',
+             hint='Раскомментируй строку с вариантом Б: if "расписание учебных" in folder["title"].lower()')
 
-            # две формы: str(x["id"]).lower()  и  x["id"].lower()
-            inner_val = comp.func.value  # объект, у которого вызываем .lower()
 
-            # форма 1: str(subscript).lower()
-            if (isinstance(inner_val, ast.Call) and
-                    isinstance(inner_val.func, ast.Name) and
-                    inner_val.func.id == 'str' and
-                    inner_val.args):
-                subscript = inner_val.args[0]
-            # форма 2: subscript.lower()
-            elif isinstance(inner_val, ast.Subscript):
-                subscript = inner_val
-            else:
-                continue
+def _check_step4_corpus_loop(tree: ast.AST) -> None:
+    """schedule_folder["folders"] — цикл по корпусам"""
+    keys = {k for _, k in _collect_subscript_keys(tree)}
+    if 'files' in keys and 'folders' not in keys:
+        _add_err('Шаг 4 (цикл корпусов)', 0,
+                 found='schedule_folder["files"]',
+                 expected='schedule_folder["folders"]',
+                 hint='Корпуса хранятся в ключе "folders", а не "files". '
+                      'Раскомментируй вариант Б.')
+    elif 'folders' in keys:
+        _add_ok('Шаг 4 (цикл корпусов)', 'schedule_folder["folders"]')
+    else:
+        _add_err('Шаг 4 (цикл корпусов)', 0,
+                 found='(не найдено)',
+                 expected='schedule_folder["folders"]',
+                 hint='Раскомментируй строку: for korpus in schedule_folder["folders"]')
 
-            if not isinstance(subscript, ast.Subscript):
-                continue
-            sl = subscript.slice
-            if isinstance(sl, ast.Constant) and sl.value == 'id':
-                seen = True
-                _add(
-                    1, node.lineno,
-                    found='folder["id"]',
-                    expected='folder["title"]',
-                    explanation=(
-                        'Название папки хранится в ключе "title", а не "id". '
-                        '"id" содержит число — строка "расписание учебных" никогда '
-                        'не будет найдена в числе.'
-                    ),
-                )
-                break
+
+def _check_step4_korpus_title(tree: ast.AST) -> None:
+    """korpus["title"] != KORPUS"""
+    keys = {k for _, k in _collect_subscript_keys(tree)}
+    if 'title' in keys:
+        _add_ok('Шаг 4 (сравнение корпуса)', 'korpus["title"]')
+    else:
+        _add_err('Шаг 4 (сравнение корпуса)', 0,
+                 found='korpus["id"]',
+                 expected='korpus["title"]',
+                 hint='Название корпуса хранится в ключе "title". '
+                      'Раскомментируй вариант Б.')
+
+
+def _check_step4_files_loop(tree: ast.AST) -> None:
+    """for f in korpus["files"]"""
+    keys = {k for _, k in _collect_subscript_keys(tree)}
+    if 'files' in keys:
+        _add_ok('Шаг 4 (цикл файлов)', 'korpus["files"]')
+    else:
+        _add_err('Шаг 4 (цикл файлов)', 0,
+                 found='korpus["folders"]',
+                 expected='korpus["files"]',
+                 hint='Файлы расписания хранятся в ключе "files". '
+                      'Раскомментируй вариант Б.')
+
+
+def _check_step4_file_keys(tree: ast.AST) -> None:
+    """
+    Проверяем что в files.append() используются правильные ключи:
+    f["id"], f["title"], f["src"], f.get("ext", ...)
+    """
+    sub_keys = {k for _, k in _collect_subscript_keys(tree)}
+    get_keys = {k for _, k in _collect_get_keys(tree)}
+
+    # f["id"]
+    if 'id' in sub_keys:
+        _add_ok('Шаг 4 (file_id)', 'f["id"]')
+    else:
+        _add_err('Шаг 4 (file_id)', 0,
+                 found='f["title"]',
+                 expected='f["id"]',
+                 hint='ID файла хранится в ключе "id". Раскомментируй вариант Б.')
+
+    # f["title"] для course
+    if 'title' in sub_keys:
+        _add_ok('Шаг 4 (course)', 'f["title"]')
+    else:
+        _add_err('Шаг 4 (course)', 0,
+                 found='f["id"]',
+                 expected='f["title"]',
+                 hint='Название курса хранится в ключе "title". Раскомментируй вариант Б.')
+
+    # f["src"]
+    if 'src' in sub_keys:
+        _add_ok('Шаг 4 (src)', 'f["src"]')
+    else:
+        _add_err('Шаг 4 (src)', 0,
+                 found='f["id"]',
+                 expected='f["src"]',
+                 hint='Путь к файлу хранится в ключе "src". Раскомментируй вариант Б.')
+
+    # f.get("ext", ...)
+    if 'ext' in get_keys:
+        _add_ok('Шаг 4 (ext)', 'f.get("ext", "xlsx")')
+    else:
+        _add_err('Шаг 4 (ext)', 0,
+                 found='f.get("id", "xlsx")',
+                 expected='f.get("ext", "xlsx")',
+                 hint='Расширение файла хранится в ключе "ext". Раскомментируй вариант Б.')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -171,56 +245,45 @@ def _check_id_in_title_search(tree: ast.AST) -> None:
 
 def _generate_review(filepath: str) -> str:
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
+    total = len(_errors) + len(_ok)
 
     if not _errors:
+        ok_list = '\n'.join(f'- ✅ {item["step"]}: `{item["value"]}`' for item in _ok)
         return (
             f"# ✅ Проверка пройдена — `{filepath}`\n\n"
             f"_Проверено: {now}_\n\n"
-            "Ошибок не найдено. Код соответствует ожидаемому решению.\n"
+            f"Все {total} шагов выполнены верно:\n\n"
+            f"{ok_list}\n\n"
+            "Отлично! Можно двигаться дальше — интегрировать парсер в Telegram-бота.\n"
         )
 
     parts = [
         f"# 🔍 Автоматическая проверка — `{filepath}`",
         f"\n_Проверено: {now}_\n",
-        f"## Итого: **{len(_errors)} ошибок**\n",
+        f"**Ошибок: {len(_errors)}** из {total} шагов\n",
         "---\n",
     ]
 
     for i, err in enumerate(_errors, 1):
+        line_str = f" (строка {err['line']})" if err['line'] else ''
         parts += [
-            f"## Ошибка {i} — строка {err['line']}\n",
+            f"## ❌ {err['step']}{line_str}\n",
             "```python",
-            f"# ❌ Написано:",
+            f"# Раскомментировано (неверно):",
             f"... {err['found']} ...",
             "",
-            f"# ✅ Должно быть:",
+            f"# Должно быть (вариант Б):",
             f"... {err['expected']} ...",
             "```\n",
-            f"**Пояснение:** {err['explanation']}\n",
+            f"**Подсказка:** {err['hint']}\n",
             "---\n",
         ]
 
-    parts += [
-        "\n## Общая причина всех ошибок\n",
-        "Все ошибки вызваны одним непониманием: **значения JSON-ключей "
-        "использованы вместо имён ключей**.\n",
-        "Пример структуры файла из API:",
-        "```json",
-        '{',
-        '  "id":    8491,',
-        '  "title": "1 курс",',
-        '  "src":   "/attach_files/.../file.xlsx",',
-        '  "ext":   "xlsx"',
-        '}',
-        "```",
-        "",
-        "| Нужно получить | Правильно | Неправильно |",
-        "|----------------|-----------|-------------|",
-        "| ID файла       | `f[\"id\"]`  | `f[8491]`   |",
-        "| Путь к файлу   | `f[\"src\"]` | `f[\"/attach_files/...\"]` |",
-        "| Расширение     | `f.get(\"ext\", \"xlsx\")` | `f.get(8491, \"xlsx\")` |",
-        "| Название папки | `folder[\"title\"]` | `folder[\"id\"]` |",
-    ]
+    if _ok:
+        parts.append("\n## ✅ Верно выполненные шаги\n")
+        for item in _ok:
+            parts.append(f'- ✅ {item["step"]}: `{item["value"]}`')
+        parts.append('')
 
     return '\n'.join(parts) + '\n'
 
@@ -236,12 +299,23 @@ def main() -> None:
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
-        print(f'СИНТАКСИЧЕСКАЯ ОШИБКА в {filepath}: {exc}')
+        review = (
+            f"# ❌ Синтаксическая ошибка — `{filepath}`\n\n"
+            f"_Проверено: {datetime.now().strftime('%Y-%m-%d %H:%M')}_\n\n"
+            f"Python не смог прочитать файл:\n```\n{exc}\n```\n\n"
+            "Проверь правильность отступов и скобок.\n"
+        )
+        Path('REVIEW.md').write_text(review, encoding='utf-8')
+        print(review)
         sys.exit(1)
 
-    _check_id_in_title_search(tree)
-    _check_subscripts(tree)
-    _check_get_with_int(tree)
+    _check_step1_page_id(tree)
+    _check_step2_folders(tree)
+    _check_step3_title(tree)
+    _check_step4_corpus_loop(tree)
+    _check_step4_korpus_title(tree)
+    _check_step4_files_loop(tree)
+    _check_step4_file_keys(tree)
 
     review = _generate_review(filepath)
     Path('REVIEW.md').write_text(review, encoding='utf-8')

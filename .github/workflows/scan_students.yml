@@ -1,0 +1,34 @@
+name: Автосканер репозиториев студентов
+
+# Запускается:
+# 1. По расписанию — каждые 2 часа (на серверах GitHub, 24/7, без твоего ноута)
+# 2. Вручную через кнопку "Run workflow" на вкладке Actions
+on:
+  schedule:
+    - cron: '0 */2 * * *'   # каждые 2 часа
+  workflow_dispatch:         # вручную
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout основного репо
+        uses: actions/checkout@v4
+
+      - name: Настройка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Найти все репо студентов и проверить их
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REVIEW_TOKEN }}
+          ORG: PKO-LP
+          # Шаблон имени: UP_06_12-05-2026_Name_Surname_32ISd
+          REPO_PATTERN: '^UP_06_\d{2}-\d{2}-\d{4}_[A-Za-z]+_[A-Za-z]+_32ISd$'
+        run: |
+          python scan_students.py
