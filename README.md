@@ -26,8 +26,24 @@ GET https://spo-13.mskobr.ru/v1/api/folder_and_file/list/30190
 
 ![JSON-ответ API с деревом файлов расписания](assets/api_json.png)
 
-Готовый инструмент парсинга xlsx уже реализован в этом репозитории (`parser.py`).  
-Его необходимо интегрировать в бота или при желании разработать собственный.
+Каждый файл в JSON содержит поле `src` — относительный путь. Полный URL файла собирается так:
+
+```
+"src": "/attach_files/upload_users_files/6a01d0662714b.xlsx"
+
+→  https://spo-13.mskobr.ru  +  /attach_files/upload_users_files/6a01d0662714b.xlsx
+=  https://spo-13.mskobr.ru/attach_files/upload_users_files/6a01d0662714b.xlsx
+```
+
+Вставь этот URL в браузер — файл скачается напрямую. В коде это одна строка:
+```python
+url = BASE_URL + f['src']   # BASE_URL = 'https://spo-13.mskobr.ru'
+```
+
+---
+
+В репозитории уже есть заготовка парсера — файл [`parser.py`](parser.py).  
+Его нужно **доработать самостоятельно**: в коде расставлены комментарии-подсказки, которые объясняют что именно дописать на каждом шаге. После доработки интегрируй парсер в своего Telegram-бота.
 
 ---
 
