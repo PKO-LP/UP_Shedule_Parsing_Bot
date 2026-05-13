@@ -22,35 +22,12 @@
 | Vlad Boryushin | [UP_06_12-05-2026_Vlad_Boryushin_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Vlad_Boryushin_32ISd) | ❌ Нет requirements.txt | 🔑 Токен в bot.py! | 🔍 | 🔍 | 🔍 |
 | Ivan Mikheev | [UP_06_12-05-2026_Ivan_Mikheev_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Ivan_Mikheev_32ISD) | ❌ Нет requirements.txt | ✅ Токен OK | ⏳ | ⏳ | ⏳ |
 | Oreshok Nikita | [UP_06_12-05-2026_Oreshok_Nikita_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Oreshok_Nikita_32ISD) | ⏳ Нет бот-файла | — | ⏳ | ⏳ | ⏳ |
-<<<<<<< HEAD
-| MINGBOI SADDAM | [UP_06_13-05-2026_MINGBOI_SADDAM_32ISD](https://github.com/PKO-LP/UP_06_13-05-2026_MINGBOI_SADDAM_32ISD) | ✅ OK (checker.py) | 🔑 Токен в bot.py! | 🔍 | 🔍 | 🔍 |
-=======
 | MINGBOI SADDAM | [UP_06_13-05-2026_MINGBOI_SADDAM_32ISD](https://github.com/PKO-LP/UP_06_13-05-2026_MINGBOI_SADDAM_32ISD) | ✅ OK (bot.py) | 🔑 Токен в bot.py! | 🔍 | 🔍 | 🔍 |
->>>>>>> c747d2e (feat: add column legend to bot table + progress block)
 | David Vardanyan | [UP_06_12-05-2026_David_Vardanyan_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_David_Vardanyan_32ISD) | ❌ Нет requirements.txt | 🔑 Токен в bot.py! | 🔍 | 🔍 | 🔍 |
 | Gizatulin Vitaliy | [UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD) | ⏳ Нет бот-файла | — | ⏳ | ⏳ | ⏳ |
 | Kamil Zaripov | [UP_06_12-05-2026_Kamil_Zaripov_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Kamil_Zaripov_32ISd) | ⏳ Нет бот-файла | — | ⏳ | ⏳ | ⏳ |
 
-<<<<<<< HEAD
-_Обновлено: 13.05.2026 11:02 UTC_
-
-### 🆕 Новые достижения — 13.05.2026 11:02 UTC
-
-- **Vlad Boryushin** → 🚀 Этап 1, 📅 Этап 2, 💾 Этап 3
-- **David Vardanyan** → 🚀 Этап 1, 📅 Этап 2, 💾 Этап 3
-- **MINGBOI SADDAM** → 🚀 Этап 1, 📅 Этап 2, 💾 Этап 3
-
-### 📈 Прогресс группы к ТЗ — 43%
-
-`█████████░░░░░░░░░░░` 9/21 этапов
-
-- ✅✅✅ **Vlad Boryushin** — 100% 🆕
-- ⬜⬜⬜ **Ivan Mikheev** — 0%
-- ⬜⬜⬜ **Oreshok Nikita** — 0%
-- ✅✅✅ **MINGBOI SADDAM** — 100% 🆕
-- ✅✅✅ **David Vardanyan** — 100% 🆕
-=======
-_Обновлено: 13.05.2026 11:07 UTC_
+_Обновлено: 13.05.2026 11:10 UTC_
 
 ### 📈 Прогресс группы к ТЗ — 43%
 
@@ -61,7 +38,6 @@ _Обновлено: 13.05.2026 11:07 UTC_
 - ⬜⬜⬜ **Oreshok Nikita** — 0%
 - ✅✅✅ **MINGBOI SADDAM** — 100%
 - ✅✅✅ **David Vardanyan** — 100%
->>>>>>> c747d2e (feat: add column legend to bot table + progress block)
 - ⬜⬜⬜ **Gizatulin Vitaliy** — 0%
 - ⬜⬜⬜ **Kamil Zaripov** — 0%
 
@@ -86,11 +62,7 @@ _Обновлено: 13.05.2026 11:07 UTC_
 | Gizatulin Vitaliy | [UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD) | ✅ Сдано |
 | Kamil Zaripov | [UP_06_12-05-2026_Kamil_Zaripov_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Kamil_Zaripov_32ISd) | ⏳ Нет parser.py |
 
-<<<<<<< HEAD
-_Обновлено: 13.05.2026 11:02 UTC_
-=======
-_Обновлено: 13.05.2026 11:07 UTC_
->>>>>>> c747d2e (feat: add column legend to bot table + progress block)
+_Обновлено: 13.05.2026 11:10 UTC_
 <!-- STUDENTS_TABLE_END -->
 
 ---
