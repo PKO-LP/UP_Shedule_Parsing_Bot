@@ -30,7 +30,7 @@ ORG          = os.environ.get('ORG', 'PKO-LP')
 TOKEN        = os.environ.get('GH_TOKEN', '')
 REPO_PATTERN = re.compile(
     os.environ.get('REPO_PATTERN',
-                   r'^UP_06_\d{2}-\d{2}-\d{4}_[A-Za-z]+_[A-Za-z]+_32ISd$'),
+                   r'^UP_06_\d{2}-\d{2}-\d{4}_[A-Za-z][A-Za-z0-9-]*_[A-Za-z][A-Za-z0-9-]*_32ISd$'),
     re.IGNORECASE
 )
 CHECKER_PATH = Path(__file__).parent / 'checker.py'
