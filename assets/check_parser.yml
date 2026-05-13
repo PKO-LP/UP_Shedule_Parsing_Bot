@@ -13,7 +13,7 @@ jobs:
       - name: Клонируем репо студента
         uses: actions/checkout@v4
 
-      - name: Скачиваем checker.py и check_rules.json
+      - name: Скачиваем checker.py, check_rules.json и check_bot.py
         run: |
           curl -sSfL \
             "https://raw.githubusercontent.com/PKO-LP/UP_Shedule_Parsing_Bot/master/checker.py" \
@@ -21,15 +21,33 @@ jobs:
           curl -sSfL \
             "https://raw.githubusercontent.com/PKO-LP/UP_Shedule_Parsing_Bot/master/check_rules.json" \
             -o check_rules.json
+          curl -sSfL \
+            "https://raw.githubusercontent.com/PKO-LP/UP_Shedule_Parsing_Bot/master/assets/check_bot.py" \
+            -o check_bot.py
 
-      - name: Запускаем проверку
-        run: python checker.py parser.py
+      - name: Проверяем parser.py
+        run: |
+          if [ -f parser.py ]; then
+            python checker.py parser.py
+          else
+            PARSER=$(find . -name "parser.py" -not -path "./.git/*" | head -1)
+            if [ -n "$PARSER" ]; then
+              python checker.py "$PARSER"
+            else
+              echo "parser.py не найден" > REVIEW.md
+            fi
+          fi
+
+      - name: Проверяем Telegram-бота
+        if: always()
+        run: python check_bot.py
 
       - name: Сохраняем REVIEW.md в репо
         if: always()
         run: |
+          rm -f checker.py check_rules.json check_bot.py
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add REVIEW.md
-          git diff --cached --quiet || git commit -m "auto: обновление REVIEW.md"
+          git diff --cached --quiet || git commit -m "auto: обновление REVIEW.md [skip ci]"
           git push

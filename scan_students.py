@@ -41,8 +41,9 @@ REPO_PATTERN = re.compile(
                    r'^UP_06_\d{2}-\d{2}-\d{4}_[A-Za-z][A-Za-z0-9-]*_[A-Za-z][A-Za-z0-9-]*_32ISd$'),
     re.IGNORECASE
 )
-CHECKER_PATH = Path(__file__).parent / 'checker.py'
-RULES_PATH   = Path(__file__).parent / 'check_rules.json'
+CHECKER_PATH   = Path(__file__).parent / 'checker.py'
+RULES_PATH     = Path(__file__).parent / 'check_rules.json'
+CHECK_BOT_PATH = Path(__file__).parent / 'assets' / 'check_bot.py'
 GRADES_PATH    = Path(__file__).parent / 'grades.json'
 SNAPSHOT_PATH  = Path(__file__).parent / 'stages_snapshot.json'
 
@@ -239,6 +240,45 @@ def save_snapshot(snapshot: dict) -> None:
         json.dump(snapshot, f, ensure_ascii=False, indent=2)
 
 
+def _run_check_bot(tmpdir: str, repo_name: str, auto_stages: dict) -> None:
+    """
+    Копирует check_bot.py в tmpdir, запускает его.
+    После запуска — заменяет строки этапов в REVIEW.md с учётом grades.json.
+    """
+    if not CHECK_BOT_PATH.exists():
+        return
+
+    bot_script = Path(tmpdir) / 'check_bot.py'
+    shutil.copy(CHECK_BOT_PATH, bot_script)
+
+    subprocess.run(
+        [sys.executable, 'check_bot.py'],
+        capture_output=True, text=True, cwd=tmpdir
+    )
+    bot_script.unlink(missing_ok=True)
+
+    # Переопределяем строки этапов с учётом grades.json
+    review_path = Path(tmpdir) / 'REVIEW.md'
+    if not review_path.exists():
+        return
+
+    eff = _effective_stages({'repo': repo_name, 'auto_stages': auto_stages}, load_grades())
+    text = review_path.read_text(encoding='utf-8')
+    for key, lbl in zip(_STAGE_KEYS,
+                        ('🚀 Этап 1 — Бот запущен',
+                         '📅 Этап 2 — Расписание',
+                         '💾 Этап 3 — Кеширование')):
+        status_auto   = '✅ Реализовано' if eff[key] else '⏳ Не выполнено'
+        status_manual = '✅ Реализовано' if eff[key] else '⏳ Не выполнено'
+        # Заменяем строку этапа (авто-значение → grades-значение)
+        text = re.sub(
+            rf'\| {re.escape(lbl)} \| .+? \|',
+            f'| {lbl} | {status_manual} |',
+            text
+        )
+    review_path.write_text(text, encoding='utf-8')
+
+
 def process_repo(repo_name: str) -> dict | None:
     """Клонирует репо, запускает checker, коммитит REVIEW.md. Возвращает dict со статусом."""
     parts = repo_name.split('_')
@@ -278,29 +318,15 @@ def process_repo(repo_name: str) -> dict | None:
             subprocess.run(['git', 'config', 'user.email',
                             '41898282+github-actions[bot]@users.noreply.github.com'],
                            cwd=tmpdir, capture_output=True)
-            # Создаём REVIEW.md с пояснением
+            # Создаём REVIEW.md с пояснением + запускаем check_bot.py
             review_path = Path(tmpdir) / 'REVIEW.md'
-            eff = _effective_stages({'repo': repo_name, 'auto_stages': auto_stages}, load_grades())
-            stage_lines = '\n'.join(
-                f'| {lbl} | {"✅ Реализовано" if eff[key] else "⏳ Не выполнено"} |'
-                for key, lbl in zip(_STAGE_KEYS, ("Этап 1 🚀 Бот запущен", "Этап 2 📅 Расписание", "Этап 3 💾 Кеширование"))
-            )
-            leaked_file = _check_token_leak(Path(tmpdir))
-            security_line = '🔑 **Токен найден в коде** — немедленно отзови у @BotFather и убери в `.env`!' \
-                if leaked_file else '✅ Токен не найден в коде'
-            content = (
+            review_path.write_text(
                 '# Результаты проверки\n\n'
                 '> ⏳ **`parser.py` не найден в репозитории.**  \n'
-                '> Добавь файл `parser.py` в корень репо (или любую подпапку) и дождись следующего скана.\n\n'
-                '---\n'
-                '## 🤖 Проверка Telegram-бота\n\n'
-                f'**Структура:** {bot_struct}  \n'
-                f'**Безопасность:** {security_line}\n\n'
-                '| Этап | Статус |\n'
-                '|------|--------|\n'
-                + stage_lines + '\n'
+                '> Добавь файл `parser.py` в корень репо (или любую подпапку) и дождись следующего скана.\n',
+                encoding='utf-8'
             )
-            review_path.write_text(content, encoding='utf-8')
+            _run_check_bot(tmpdir, repo_name, auto_stages)
             subprocess.run(['git', 'add', 'REVIEW.md'], cwd=tmpdir, capture_output=True)
             diff = subprocess.run(['git', 'diff', '--cached', '--quiet'], cwd=tmpdir, capture_output=True)
             if diff.returncode != 0:
@@ -343,30 +369,8 @@ def process_repo(repo_name: str) -> dict | None:
         errors_word = 'ошибки' if check_result.returncode != 0 else 'OK'
         status = '❌ Есть ошибки' if check_result.returncode != 0 else '✅ Сдано'
 
-        # Дополняем REVIEW.md блоком о боте
-        eff = _effective_stages({'repo': repo_name, 'auto_stages': auto_stages},
-                                 load_grades())
-        stage_lines = '\n'.join(
-            f'| {lbl} | {"✅ Реализовано" if eff[key] else "⏳ Не выполнено"} |'
-            for key, lbl in zip(_STAGE_KEYS, ("Этап 1 🚀 Бот запущен", "Этап 2 📅 Расписание", "Этап 3 💾 Кеширование"))
-        )
-        leaked_file = _check_token_leak(Path(tmpdir))
-        security_line = f'🔑 **Токен найден в коде** — немедленно отзови у @BotFather и убери в `.env`!' \
-            if leaked_file else '✅ Токен не найден в коде'
-
-        bot_block = (
-            '\n\n---\n'
-            '## 🤖 Проверка Telegram-бота\n\n'
-            f'**Структура:** {bot_struct}  \n'
-            f'**Безопасность:** {security_line}\n\n'
-            '| Этап | Статус |\n'
-            '|------|--------|\n'
-            + stage_lines + '\n'
-        )
-        review_path.write_text(
-            review_path.read_text(encoding='utf-8') + bot_block,
-            encoding='utf-8'
-        )
+        # Запускаем check_bot.py — он пишет детальный бот-блок в REVIEW.md
+        _run_check_bot(tmpdir, repo_name, auto_stages)
 
         # Коммитим REVIEW.md
         subprocess.run(['git', 'add', 'REVIEW.md'], cwd=tmpdir, capture_output=True)
