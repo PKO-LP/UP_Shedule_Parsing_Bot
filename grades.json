@@ -1,0 +1,15 @@
+{
+  "comment": "Ручные отметки этапов демо. Заполняй сам после просмотра у студента.",
+  "stages": {
+    "demo1": "Бот запущен, отвечает на /start",
+    "demo2": "Бот выводит расписание (правильные данные)",
+    "demo3": "Кеширование работает (повторный вызов не скачивает заново)"
+  },
+  "grades": {
+    "UP_06_12-05-2026_Ivan_Mikheev_32ISD":       { "demo1": false, "demo2": false, "demo3": false },
+    "UP_06_12-05-2026_Vlad_Boryushin_32ISd":     { "demo1": false, "demo2": false, "demo3": false },
+    "UP_06_12-05-2026_David_Vardanyan_32ISD":    { "demo1": false, "demo2": false, "demo3": false },
+    "UP_06_13-05-2026_MINGBOI_SADDAM_32ISD":     { "demo1": false, "demo2": false, "demo3": false },
+    "UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD":  { "demo1": false, "demo2": false, "demo3": false }
+  }
+}

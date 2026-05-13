@@ -35,6 +35,7 @@ REPO_PATTERN = re.compile(
 )
 CHECKER_PATH = Path(__file__).parent / 'checker.py'
 RULES_PATH   = Path(__file__).parent / 'check_rules.json'
+GRADES_PATH  = Path(__file__).parent / 'grades.json'
 
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -76,15 +77,62 @@ def get_student_repos() -> list[str]:
     return matched
 
 
+def check_bot_structure(tmpdir: str) -> str:
+    """Автоматическая проверка структуры бота в репо студента."""
+    base = Path(tmpdir)
+
+    # Ищем файл бота
+    bot_files = (list(base.glob('bot.py')) + list(base.glob('main.py'))
+                 + list(base.glob('*bot*.py')) + list(base.glob('*main*.py')))
+    if not bot_files:
+        return '⏳ Нет bot.py'
+
+    # Проверяем requirements.txt
+    req = base / 'requirements.txt'
+    if not req.exists():
+        return '❌ Нет requirements.txt'
+
+    req_text = req.read_text(encoding='utf-8', errors='ignore').lower()
+    tg_libs = ['aiogram', 'telebot', 'python-telegram-bot', 'telegram']
+    if not any(lib in req_text for lib in tg_libs):
+        return '❌ Нет TG-библиотеки'
+
+    # Проверяем хардкод токена (безопасность)
+    token_re = re.compile(r'\d{10}:[A-Za-z0-9_-]{35}')
+    for py_file in base.glob('*.py'):
+        content = py_file.read_text(encoding='utf-8', errors='ignore')
+        if token_re.search(content):
+            return '🔑 Токен в коде!'
+
+    # Проверяем наличие /start
+    all_code = '\n'.join(
+        f.read_text(encoding='utf-8', errors='ignore') for f in base.glob('*.py')
+    )
+    if 'start' not in all_code.lower():
+        return '❌ Нет /start'
+
+    return '✅ Структура OK'
+
+
+def load_grades() -> dict:
+    """Загружает ручные отметки этапов из grades.json."""
+    if not GRADES_PATH.exists():
+        return {}
+    with open(GRADES_PATH, encoding='utf-8') as f:
+        data = json.load(f)
+    return data.get('grades', {})
+
+
 def process_repo(repo_name: str) -> dict | None:
     """Клонирует репо, запускает checker, коммитит REVIEW.md. Возвращает dict со статусом."""
     parts = repo_name.split('_')
     first_name = parts[3] if len(parts) >= 5 else '?'
     last_name  = parts[4] if len(parts) >= 5 else '?'
 
-    def make_result(status: str) -> dict:
+    def make_result(status: str, bot_struct: str = '—') -> dict:
         return {'repo': repo_name, 'first_name': first_name,
-                'last_name': last_name, 'status': status}
+                'last_name': last_name, 'status': status,
+                'bot_struct': bot_struct}
 
     repo_url = f'https://x-access-token:{TOKEN}@github.com/{ORG}/{repo_name}.git'
 
@@ -98,10 +146,12 @@ def process_repo(repo_name: str) -> dict | None:
             print(f'[{repo_name}] Ошибка клонирования: {clone.stderr}')
             return make_result('❓ Ошибка')
 
+        bot_struct = check_bot_structure(tmpdir)
+
         parser_path = Path(tmpdir) / 'parser.py'
         if not parser_path.exists():
             print(f'[{repo_name}] parser.py не найден — пропускаем')
-            return make_result('⏳ Нет parser.py')
+            return make_result('⏳ Нет parser.py', bot_struct)
 
         # Копируем checker.py и check_rules.json в папку репо
         shutil.copy(CHECKER_PATH, Path(tmpdir) / 'checker.py')
@@ -117,7 +167,7 @@ def process_repo(repo_name: str) -> dict | None:
         review_path = Path(tmpdir) / 'REVIEW.md'
         if not review_path.exists():
             print(f'[{repo_name}] REVIEW.md не создан — пропускаем')
-            return make_result('❓ Ошибка')
+            return make_result('❓ Ошибка', bot_struct)
 
         # Настраиваем git
         subprocess.run(['git', 'config', 'user.name', 'teacher-bot[bot]'],
@@ -152,53 +202,89 @@ def process_repo(repo_name: str) -> dict | None:
         else:
             print(f'[{repo_name}] ❌ Ошибка push: {push.stderr}')
 
-        return make_result(status)
+        return make_result(status, bot_struct)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 
 def update_readme_table(results: list[dict]) -> None:
-    """Обновляет таблицу прогресса студентов в README.md основного репо."""
+    """Обновляет таблицы прогресса студентов в README.md основного репо."""
     readme_path = Path(__file__).parent / 'README.md'
     if not readme_path.exists():
         return
 
     content = readme_path.read_text(encoding='utf-8')
+    grades  = load_grades()
+    now     = datetime.datetime.utcnow().strftime('%d.%m.%Y %H:%M UTC')
 
-    now = datetime.datetime.utcnow().strftime('%d.%m.%Y %H:%M UTC')
-    rows = []
-    for r in sorted(results, key=lambda x: x['last_name']):
+    def grade_mark(repo: str, stage: str) -> str:
+        g = grades.get(repo, {})
+        return '✅' if g.get(stage) else '⏳'
+
+    sorted_results = sorted(results, key=lambda x: x['last_name'])
+
+    # ── Таблица 1: парсер ────────────────────────────────────────────────────
+    parser_rows = []
+    for r in sorted_results:
         repo_url = f'https://github.com/{ORG}/{r["repo"]}'
-        rows.append(
+        parser_rows.append(
             f'| {r["first_name"]} {r["last_name"]} '
             f'| [{r["repo"]}]({repo_url}) '
             f'| {r["status"]} |'
         )
 
-    table = (
+    parser_table = (
         '| Студент | Репозиторий | Статус |\n'
         '|---------|-------------|--------|\n'
-        + ('\n'.join(rows) + '\n' if rows else '')
+        + ('\n'.join(parser_rows) + '\n' if parser_rows else '')
         + f'\n_Обновлено: {now}_'
     )
-
-    new_section = (
+    new_parser_section = (
         '<!-- STUDENTS_TABLE_START -->\n'
-        + table
+        + parser_table
         + '\n<!-- STUDENTS_TABLE_END -->'
     )
-    new_content = re.sub(
+    content = re.sub(
         r'<!-- STUDENTS_TABLE_START -->.*?<!-- STUDENTS_TABLE_END -->',
-        new_section,
-        content,
-        flags=re.DOTALL
+        new_parser_section, content, flags=re.DOTALL
     )
 
-    if new_content != content:
-        readme_path.write_text(new_content, encoding='utf-8')
-        print('README.md: таблица студентов обновлена.')
+    # ── Таблица 2: этапы бота ───────────────────────────────────────────────
+    bot_rows = []
+    for r in sorted_results:
+        repo_url = f'https://github.com/{ORG}/{r["repo"]}'
+        bot_rows.append(
+            f'| {r["first_name"]} {r["last_name"]} '
+            f'| [{r["repo"]}]({repo_url}) '
+            f'| {r.get("bot_struct", "—")} '
+            f'| {grade_mark(r["repo"], "demo1")} '
+            f'| {grade_mark(r["repo"], "demo2")} '
+            f'| {grade_mark(r["repo"], "demo3")} |'
+        )
+
+    bot_table = (
+        '| Студент | Репозиторий | Структура | Этап 1 🚀 | Этап 2 📅 | Этап 3 💾 |\n'
+        '|---------|-------------|-----------|-----------|-----------|----------|\n'
+        + ('\n'.join(bot_rows) + '\n' if bot_rows else '')
+        + f'\n_Обновлено: {now}_'
+    )
+    new_bot_section = (
+        '<!-- BOT_TABLE_START -->\n'
+        + bot_table
+        + '\n<!-- BOT_TABLE_END -->'
+    )
+
+    if '<!-- BOT_TABLE_START -->' in content:
+        content = re.sub(
+            r'<!-- BOT_TABLE_START -->.*?<!-- BOT_TABLE_END -->',
+            new_bot_section, content, flags=re.DOTALL
+        )
     else:
-        print('README.md: таблица студентов не изменилась.')
+        # Добавляем секцию в конец файла
+        content = content.rstrip() + '\n\n---\n\n## Прогресс — Telegram-бот\n\n' + new_bot_section + '\n'
+
+    readme_path.write_text(content, encoding='utf-8')
+    print('README.md: таблицы обновлены.')
 
 
 def main() -> None:
