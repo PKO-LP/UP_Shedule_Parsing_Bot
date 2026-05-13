@@ -271,7 +271,46 @@ def process_repo(repo_name: str) -> dict | None:
         parser_paths = list(Path(tmpdir).glob('parser.py')) + list(Path(tmpdir).glob('**/parser.py'))
         parser_path = parser_paths[0] if parser_paths else None
         if not parser_path:
-            print(f'[{repo_name}] parser.py не найден — пропускаем')
+            print(f'[{repo_name}] parser.py не найден — создаём REVIEW.md без проверки парсера')
+            # Настраиваем git
+            subprocess.run(['git', 'config', 'user.name', 'teacher-bot[bot]'],
+                           cwd=tmpdir, capture_output=True)
+            subprocess.run(['git', 'config', 'user.email',
+                            '41898282+github-actions[bot]@users.noreply.github.com'],
+                           cwd=tmpdir, capture_output=True)
+            # Создаём REVIEW.md с пояснением
+            review_path = Path(tmpdir) / 'REVIEW.md'
+            eff = _effective_stages({'repo': repo_name, 'auto_stages': auto_stages}, load_grades())
+            stage_lines = '\n'.join(
+                f'| {lbl} | {"✅ Реализовано" if eff[key] else "⏳ Не выполнено"} |'
+                for key, lbl in zip(_STAGE_KEYS, ("Этап 1 🚀 Бот запущен", "Этап 2 📅 Расписание", "Этап 3 💾 Кеширование"))
+            )
+            leaked_file = _check_token_leak(Path(tmpdir))
+            security_line = '🔑 **Токен найден в коде** — немедленно отзови у @BotFather и убери в `.env`!' \
+                if leaked_file else '✅ Токен не найден в коде'
+            content = (
+                '# Результаты проверки\n\n'
+                '> ⏳ **`parser.py` не найден в репозитории.**  \n'
+                '> Добавь файл `parser.py` в корень репо (или любую подпапку) и дождись следующего скана.\n\n'
+                '---\n'
+                '## 🤖 Проверка Telegram-бота\n\n'
+                f'**Структура:** {bot_struct}  \n'
+                f'**Безопасность:** {security_line}\n\n'
+                '| Этап | Статус |\n'
+                '|------|--------|\n'
+                + stage_lines + '\n'
+            )
+            review_path.write_text(content, encoding='utf-8')
+            subprocess.run(['git', 'add', 'REVIEW.md'], cwd=tmpdir, capture_output=True)
+            diff = subprocess.run(['git', 'diff', '--cached', '--quiet'], cwd=tmpdir, capture_output=True)
+            if diff.returncode != 0:
+                subprocess.run(['git', 'commit', '-m', 'auto-review: нет parser.py [skip ci]'],
+                               cwd=tmpdir, capture_output=True)
+                push = subprocess.run(['git', 'push'], cwd=tmpdir, capture_output=True, text=True)
+                if push.returncode == 0:
+                    print(f'[{repo_name}] ✅ REVIEW.md создан (нет parser.py)')
+                else:
+                    print(f'[{repo_name}] ❌ Ошибка push: {push.stderr}')
             return make_result('⏳ Нет parser.py', bot_struct, bot_security, auto_stages)
 
         # Копируем checker.py и check_rules.json в папку репо
