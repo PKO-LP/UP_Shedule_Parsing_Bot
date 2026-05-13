@@ -15,9 +15,9 @@
 | Gizatulin Vitaliy | [UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD) | ⏳ Нет бот-файла | — | ⏳ | ⏳ | ⏳ |
 | Kamil Zaripov | [UP_06_12-05-2026_Kamil_Zaripov_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Kamil_Zaripov_32ISd) | ⏳ Нет бот-файла | — | ⏳ | ⏳ | ⏳ |
 
-_Обновлено: 13.05.2026 10:35 UTC_
+_Обновлено: 13.05.2026 11:02 UTC_
 
-### 🆕 Новые достижения — 13.05.2026 10:35 UTC
+### 🆕 Новые достижения — 13.05.2026 11:02 UTC
 
 - **Vlad Boryushin** → 🚀 Этап 1, 📅 Этап 2, 💾 Этап 3
 - **David Vardanyan** → 🚀 Этап 1, 📅 Этап 2, 💾 Этап 3
@@ -56,7 +56,7 @@ _Обновлено: 13.05.2026 10:35 UTC_
 | Gizatulin Vitaliy | [UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD) | ✅ Сдано |
 | Kamil Zaripov | [UP_06_12-05-2026_Kamil_Zaripov_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Kamil_Zaripov_32ISd) | ⏳ Нет parser.py |
 
-_Обновлено: 13.05.2026 10:35 UTC_
+_Обновлено: 13.05.2026 11:02 UTC_
 <!-- STUDENTS_TABLE_END -->
 
 ---
