@@ -77,41 +77,77 @@ def get_student_repos() -> list[str]:
     return matched
 
 
-def check_bot_structure(tmpdir: str) -> str:
-    """Автоматическая проверка структуры бота в репо студента."""
+# Регулярка для поиска Telegram bot token
+_TOKEN_RE = re.compile(r'\d{9,12}:[A-Za-z0-9_-]{35,}')
+
+
+def _check_token_leak(base: Path) -> str | None:
+    """
+    Ищет хардкод Telegram-токена рекурсивно во всех .py, .env, .txt, .cfg, .ini файлах.
+    Возвращает имя файла где найден токен, или None.
+    """
+    patterns = ['**/*.py', '**/.env', '**/*.env', '**/config.py',
+                '**/settings.py', '**/config.ini', '**/config.cfg',
+                '**/*.txt', '**/*.cfg', '**/*.ini']
+    checked = set()
+    for pat in patterns:
+        for f in base.glob(pat):
+            if f in checked or not f.is_file():
+                continue
+            checked.add(f)
+            # Пропускаем requirements.txt
+            if f.name == 'requirements.txt':
+                continue
+            try:
+                content = f.read_text(encoding='utf-8', errors='ignore')
+            except Exception:
+                continue
+            if _TOKEN_RE.search(content):
+                return f.relative_to(base).as_posix()
+    return None
+
+
+def check_bot_structure(tmpdir: str) -> tuple[str, str]:
+    """
+    Автоматическая проверка структуры бота в репо студента.
+    Возвращает (статус_структуры, статус_безопасности).
+    """
     base = Path(tmpdir)
 
-    # Ищем файл бота
+    # Ищем файл бота рекурсивно
     bot_files = (list(base.glob('bot.py')) + list(base.glob('main.py'))
-                 + list(base.glob('*bot*.py')) + list(base.glob('*main*.py')))
+                 + list(base.glob('**/bot.py')) + list(base.glob('**/main.py'))
+                 + list(base.glob('**/*bot*.py')))
+    bot_files = [f for f in bot_files if f.is_file()]
+
     if not bot_files:
-        return '⏳ Нет bot.py'
+        return '⏳ Нет bot.py', '—'
 
     # Проверяем requirements.txt
-    req = base / 'requirements.txt'
-    if not req.exists():
-        return '❌ Нет requirements.txt'
+    req_files = list(base.glob('requirements.txt')) + list(base.glob('**/requirements.txt'))
+    if not req_files:
+        struct = '❌ Нет requirements.txt'
+    else:
+        req_text = req_files[0].read_text(encoding='utf-8', errors='ignore').lower()
+        tg_libs = ['aiogram', 'telebot', 'python-telegram-bot', 'telegram']
+        if not any(lib in req_text for lib in tg_libs):
+            struct = '❌ Нет TG-библиотеки'
+        else:
+            # Проверяем наличие /start
+            all_code = '\n'.join(
+                f.read_text(encoding='utf-8', errors='ignore')
+                for f in base.glob('**/*.py') if f.is_file()
+            )
+            struct = '✅ Структура OK' if 'start' in all_code.lower() else '❌ Нет /start'
 
-    req_text = req.read_text(encoding='utf-8', errors='ignore').lower()
-    tg_libs = ['aiogram', 'telebot', 'python-telegram-bot', 'telegram']
-    if not any(lib in req_text for lib in tg_libs):
-        return '❌ Нет TG-библиотеки'
+    # Проверяем хардкод токена (безопасность) — отдельно от структуры
+    leaked_file = _check_token_leak(base)
+    if leaked_file:
+        security = f'🔑 Токен в {leaked_file}!'
+    else:
+        security = '✅ Токен OK'
 
-    # Проверяем хардкод токена (безопасность)
-    token_re = re.compile(r'\d{10}:[A-Za-z0-9_-]{35}')
-    for py_file in base.glob('*.py'):
-        content = py_file.read_text(encoding='utf-8', errors='ignore')
-        if token_re.search(content):
-            return '🔑 Токен в коде!'
-
-    # Проверяем наличие /start
-    all_code = '\n'.join(
-        f.read_text(encoding='utf-8', errors='ignore') for f in base.glob('*.py')
-    )
-    if 'start' not in all_code.lower():
-        return '❌ Нет /start'
-
-    return '✅ Структура OK'
+    return struct, security
 
 
 def load_grades() -> dict:
@@ -129,10 +165,10 @@ def process_repo(repo_name: str) -> dict | None:
     first_name = parts[3] if len(parts) >= 5 else '?'
     last_name  = parts[4] if len(parts) >= 5 else '?'
 
-    def make_result(status: str, bot_struct: str = '—') -> dict:
+    def make_result(status: str, bot_struct: str = '—', bot_security: str = '—') -> dict:
         return {'repo': repo_name, 'first_name': first_name,
                 'last_name': last_name, 'status': status,
-                'bot_struct': bot_struct}
+                'bot_struct': bot_struct, 'bot_security': bot_security}
 
     repo_url = f'https://x-access-token:{TOKEN}@github.com/{ORG}/{repo_name}.git'
 
@@ -146,12 +182,12 @@ def process_repo(repo_name: str) -> dict | None:
             print(f'[{repo_name}] Ошибка клонирования: {clone.stderr}')
             return make_result('❓ Ошибка')
 
-        bot_struct = check_bot_structure(tmpdir)
+        bot_struct, bot_security = check_bot_structure(tmpdir)
 
         parser_path = Path(tmpdir) / 'parser.py'
         if not parser_path.exists():
             print(f'[{repo_name}] parser.py не найден — пропускаем')
-            return make_result('⏳ Нет parser.py', bot_struct)
+            return make_result('⏳ Нет parser.py', bot_struct, bot_security)
 
         # Копируем checker.py и check_rules.json в папку репо
         shutil.copy(CHECKER_PATH, Path(tmpdir) / 'checker.py')
@@ -182,6 +218,23 @@ def process_repo(repo_name: str) -> dict | None:
         errors_word = 'ошибки' if check_result.returncode != 0 else 'OK'
         status = '❌ Есть ошибки' if check_result.returncode != 0 else '✅ Сдано'
 
+        # Если токен найден — добавляем предупреждение в REVIEW.md
+        if leaked_file := _check_token_leak(Path(tmpdir)):
+            security_warning = (
+                '\n\n---\n'
+                '## ⚠️ КРИТИЧЕСКАЯ ОШИБКА БЕЗОПАСНОСТИ\n\n'
+                f'**В файле `{leaked_file}` обнаружен хардкод Telegram bot token!**\n\n'
+                '❌ Это означает, что твой токен виден всем кто смотрит репо.\n'
+                'Злоумышленник может захватить управление ботом.\n\n'
+                '**Как исправить:**\n'
+                '1. Немедленно отзови токен у @BotFather (`/revoke`)\n'
+                '2. Получи новый токен\n'
+                '3. Вынеси токен в переменную окружения: `os.environ["BOT_TOKEN"]`\n'
+                '   или в файл `.env` (добавь `.env` в `.gitignore`)\n'
+            )
+            review_text = review_path.read_text(encoding='utf-8') + security_warning
+            review_path.write_text(review_text, encoding='utf-8')
+
         # Коммитим REVIEW.md
         subprocess.run(['git', 'add', 'REVIEW.md'], cwd=tmpdir, capture_output=True)
         diff = subprocess.run(
@@ -202,7 +255,7 @@ def process_repo(repo_name: str) -> dict | None:
         else:
             print(f'[{repo_name}] ❌ Ошибка push: {push.stderr}')
 
-        return make_result(status, bot_struct)
+        return make_result(status, bot_struct, bot_security)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -257,14 +310,15 @@ def update_readme_table(results: list[dict]) -> None:
             f'| {r["first_name"]} {r["last_name"]} '
             f'| [{r["repo"]}]({repo_url}) '
             f'| {r.get("bot_struct", "—")} '
+            f'| {r.get("bot_security", "—")} '
             f'| {grade_mark(r["repo"], "demo1")} '
             f'| {grade_mark(r["repo"], "demo2")} '
             f'| {grade_mark(r["repo"], "demo3")} |'
         )
 
     bot_table = (
-        '| Студент | Репозиторий | Структура | Этап 1 🚀 | Этап 2 📅 | Этап 3 💾 |\n'
-        '|---------|-------------|-----------|-----------|-----------|----------|\n'
+        '| Студент | Репозиторий | Структура | 🔒 Безопасность | Этап 1 🚀 | Этап 2 📅 | Этап 3 💾 |\n'
+        '|---------|-------------|-----------|-----------------|-----------|-----------|----------|\n'
         + ('\n'.join(bot_rows) + '\n' if bot_rows else '')
         + f'\n_Обновлено: {now}_'
     )
