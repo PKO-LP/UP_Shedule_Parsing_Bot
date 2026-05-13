@@ -7,15 +7,15 @@
 <!-- BOT_TABLE_START -->
 | Студент | Репозиторий | Структура | 🔒 Безопасность | Этап 1 🚀 | Этап 2 📅 | Этап 3 💾 |
 |---------|-------------|-----------|-----------------|-----------|-----------|----------|
-| Vlad Boryushin | [UP_06_12-05-2026_Vlad_Boryushin_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Vlad_Boryushin_32ISd) | ⏳ Нет bot.py | — | ⏳ | ⏳ | ⏳ |
+| Vlad Boryushin | [UP_06_12-05-2026_Vlad_Boryushin_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Vlad_Boryushin_32ISd) | ❌ Нет requirements.txt | 🔑 Токен в bot.py! | ⏳ | ⏳ | ⏳ |
 | Ivan Mikheev | [UP_06_12-05-2026_Ivan_Mikheev_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Ivan_Mikheev_32ISD) | ⏳ Нет bot.py | — | ⏳ | ⏳ | ⏳ |
 | Oreshok Nikita | [UP_06_12-05-2026_Oreshok_Nikita_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Oreshok_Nikita_32ISD) | ⏳ Нет bot.py | — | ⏳ | ⏳ | ⏳ |
 | MINGBOI SADDAM | [UP_06_13-05-2026_MINGBOI_SADDAM_32ISD](https://github.com/PKO-LP/UP_06_13-05-2026_MINGBOI_SADDAM_32ISD) | ✅ Структура OK | 🔑 Токен в bot.py! | 🔍 | 🔍 | 🔍 |
-| David Vardanyan | [UP_06_12-05-2026_David_Vardanyan_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_David_Vardanyan_32ISD) | ⏳ Нет bot.py | — | ⏳ | ⏳ | ⏳ |
+| David Vardanyan | [UP_06_12-05-2026_David_Vardanyan_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_David_Vardanyan_32ISD) | ❌ Нет requirements.txt | 🔑 Токен в bot.py! | ⏳ | ⏳ | ⏳ |
 | Gizatulin Vitaliy | [UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD) | ⏳ Нет bot.py | — | ⏳ | ⏳ | ⏳ |
 | Kamil Zaripov | [UP_06_12-05-2026_Kamil_Zaripov_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Kamil_Zaripov_32ISd) | ❌ Нет requirements.txt | ✅ Токен OK | ⏳ | ⏳ | ⏳ |
 
-_Обновлено: 13.05.2026 09:44 UTC_
+_Обновлено: 13.05.2026 09:58 UTC_
 
 ### 📊 Распределение по этапам
 
@@ -42,7 +42,7 @@ _Обновлено: 13.05.2026 09:44 UTC_
 | Gizatulin Vitaliy | [UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD) | ✅ Сдано |
 | Kamil Zaripov | [UP_06_12-05-2026_Kamil_Zaripov_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Kamil_Zaripov_32ISd) | ⏳ Нет parser.py |
 
-_Обновлено: 13.05.2026 09:44 UTC_
+_Обновлено: 13.05.2026 09:58 UTC_
 <!-- STUDENTS_TABLE_END -->
 
 ---
