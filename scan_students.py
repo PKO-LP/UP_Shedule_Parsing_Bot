@@ -133,18 +133,15 @@ def check_bot_structure(tmpdir: str) -> tuple[str, str]:
             break
 
     if tg_file is None:
-        # Нет ни одного файла с TG-импортом
-        # Проверяем хотя бы requirements.txt
         req_files = list(base.glob('requirements.txt')) + list(base.glob('**/requirements.txt'))
         if not req_files:
             return '⏳ Нет бот-файла', '—'
         req_text = req_files[0].read_text(encoding='utf-8', errors='ignore').lower()
         if not any(lib in req_text for lib in TG_LIBS):
             return '⏳ Нет бот-файла', '—'
-        # requirements есть, но в коде импорта нет — скорее всего пустой бот
-        return '❌ Нет TG-импорта в коде', '—'
+        return '❌ Нет TG-импорта', '—'
 
-    # TG-файл найден — дальше стандартные проверки
+    # TG-файл найден — стандартные проверки
     req_files = list(base.glob('requirements.txt')) + list(base.glob('**/requirements.txt'))
     if not req_files:
         struct = '❌ Нет requirements.txt'
@@ -154,11 +151,10 @@ def check_bot_structure(tmpdir: str) -> tuple[str, str]:
     elif 'start' not in code_low:
         struct = '❌ Нет /start'
     else:
-        bot_name = tg_file.relative_to(base).as_posix()
-        struct = f'✅ OK ({bot_name})'
+        struct = '✅ OK'
 
     leaked_file = _check_token_leak(base)
-    security = f'🔑 Токен в {leaked_file}!' if leaked_file else '✅ Токен OK'
+    security = f'🔑 Токен в коде!' if leaked_file else '✅ OK'
 
     return struct, security
 
@@ -263,8 +259,10 @@ def process_repo(repo_name: str) -> dict | None:
         bot_struct, bot_security = check_bot_structure(tmpdir)
         auto_stages = auto_detect_stages(tmpdir)
 
-        parser_path = Path(tmpdir) / 'parser.py'
-        if not parser_path.exists():
+        # Ищем parser.py рекурсивно — студент мог положить в подпапку
+        parser_paths = list(Path(tmpdir).glob('parser.py')) + list(Path(tmpdir).glob('**/parser.py'))
+        parser_path = parser_paths[0] if parser_paths else None
+        if not parser_path:
             print(f'[{repo_name}] parser.py не найден — пропускаем')
             return make_result('⏳ Нет parser.py', bot_struct, bot_security, auto_stages)
 
@@ -273,9 +271,10 @@ def process_repo(repo_name: str) -> dict | None:
         if RULES_PATH.exists():
             shutil.copy(RULES_PATH, Path(tmpdir) / 'check_rules.json')
 
-        # Запускаем checker
+        # Запускаем checker — передаём относительный путь к parser.py
+        rel_parser = str(parser_path.relative_to(Path(tmpdir)))
         check_result = subprocess.run(
-            [sys.executable, 'checker.py', 'parser.py'],
+            [sys.executable, 'checker.py', rel_parser],
             capture_output=True, text=True, cwd=tmpdir
         )
 
@@ -297,22 +296,30 @@ def process_repo(repo_name: str) -> dict | None:
         errors_word = 'ошибки' if check_result.returncode != 0 else 'OK'
         status = '❌ Есть ошибки' if check_result.returncode != 0 else '✅ Сдано'
 
-        # Если токен найден — добавляем предупреждение в REVIEW.md
-        if leaked_file := _check_token_leak(Path(tmpdir)):
-            security_warning = (
-                '\n\n---\n'
-                '## ⚠️ КРИТИЧЕСКАЯ ОШИБКА БЕЗОПАСНОСТИ\n\n'
-                f'**В файле `{leaked_file}` обнаружен хардкод Telegram bot token!**\n\n'
-                '❌ Это означает, что твой токен виден всем кто смотрит репо.\n'
-                'Злоумышленник может захватить управление ботом.\n\n'
-                '**Как исправить:**\n'
-                '1. Немедленно отзови токен у @BotFather (`/revoke`)\n'
-                '2. Получи новый токен\n'
-                '3. Вынеси токен в переменную окружения: `os.environ["BOT_TOKEN"]`\n'
-                '   или в файл `.env` (добавь `.env` в `.gitignore`)\n'
-            )
-            review_text = review_path.read_text(encoding='utf-8') + security_warning
-            review_path.write_text(review_text, encoding='utf-8')
+        # Дополняем REVIEW.md блоком о боте
+        eff = _effective_stages({'repo': repo_name, 'auto_stages': auto_stages},
+                                 load_grades())
+        stage_lines = '\n'.join(
+            f'| {lbl} | {"✅ Реализовано" if eff[key] else "⏳ Не выполнено"} |'
+            for key, lbl in zip(_STAGE_KEYS, ("Этап 1 🚀 Бот запущен", "Этап 2 📅 Расписание", "Этап 3 💾 Кеширование"))
+        )
+        leaked_file = _check_token_leak(Path(tmpdir))
+        security_line = f'🔑 **Токен найден в коде** — немедленно отзови у @BotFather и убери в `.env`!' \
+            if leaked_file else '✅ Токен не найден в коде'
+
+        bot_block = (
+            '\n\n---\n'
+            '## 🤖 Проверка Telegram-бота\n\n'
+            f'**Структура:** {bot_struct}  \n'
+            f'**Безопасность:** {security_line}\n\n'
+            '| Этап | Статус |\n'
+            '|------|--------|\n'
+            + stage_lines + '\n'
+        )
+        review_path.write_text(
+            review_path.read_text(encoding='utf-8') + bot_block,
+            encoding='utf-8'
+        )
 
         # Коммитим REVIEW.md
         subprocess.run(['git', 'add', 'REVIEW.md'], cwd=tmpdir, capture_output=True)

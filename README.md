@@ -19,15 +19,15 @@
 
 | Студент | Репозиторий | Структура | 🔒 Безопасность | Этап 1 🚀 | Этап 2 📅 | Этап 3 💾 |
 |---------|-------------|-----------|-----------------|-----------|-----------|----------|
-| Vlad Boryushin | [UP_06_12-05-2026_Vlad_Boryushin_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Vlad_Boryushin_32ISd) | ❌ Нет requirements.txt | 🔑 Токен в bot.py! | 🔍 | 🔍 | 🔍 |
-| Ivan Mikheev | [UP_06_12-05-2026_Ivan_Mikheev_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Ivan_Mikheev_32ISD) | ❌ Нет requirements.txt | ✅ Токен OK | ⏳ | ⏳ | ⏳ |
+| Vlad Boryushin | [UP_06_12-05-2026_Vlad_Boryushin_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Vlad_Boryushin_32ISd) | ❌ Нет requirements.txt | 🔑 Токен в коде! | 🔍 | 🔍 | 🔍 |
+| Ivan Mikheev | [UP_06_12-05-2026_Ivan_Mikheev_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Ivan_Mikheev_32ISD) | ❌ Нет requirements.txt | ✅ OK | ⏳ | ⏳ | ⏳ |
 | Oreshok Nikita | [UP_06_12-05-2026_Oreshok_Nikita_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Oreshok_Nikita_32ISD) | ⏳ Нет бот-файла | — | ⏳ | ⏳ | ⏳ |
-| MINGBOI SADDAM | [UP_06_13-05-2026_MINGBOI_SADDAM_32ISD](https://github.com/PKO-LP/UP_06_13-05-2026_MINGBOI_SADDAM_32ISD) | ✅ OK (bot.py) | 🔑 Токен в bot.py! | 🔍 | 🔍 | 🔍 |
-| David Vardanyan | [UP_06_12-05-2026_David_Vardanyan_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_David_Vardanyan_32ISD) | ❌ Нет requirements.txt | 🔑 Токен в bot.py! | 🔍 | 🔍 | 🔍 |
+| MINGBOI SADDAM | [UP_06_13-05-2026_MINGBOI_SADDAM_32ISD](https://github.com/PKO-LP/UP_06_13-05-2026_MINGBOI_SADDAM_32ISD) | ✅ OK | 🔑 Токен в коде! | 🔍 | 🔍 | 🔍 |
+| David Vardanyan | [UP_06_12-05-2026_David_Vardanyan_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_David_Vardanyan_32ISD) | ❌ Нет requirements.txt | 🔑 Токен в коде! | 🔍 | 🔍 | 🔍 |
 | Gizatulin Vitaliy | [UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD) | ⏳ Нет бот-файла | — | ⏳ | ⏳ | ⏳ |
 | Kamil Zaripov | [UP_06_12-05-2026_Kamil_Zaripov_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Kamil_Zaripov_32ISd) | ⏳ Нет бот-файла | — | ⏳ | ⏳ | ⏳ |
 
-_Обновлено: 13.05.2026 11:10 UTC_
+_Обновлено: 13.05.2026 11:30 UTC_
 
 ### 📈 Прогресс группы к ТЗ — 43%
 
@@ -62,7 +62,7 @@ _Обновлено: 13.05.2026 11:10 UTC_
 | Gizatulin Vitaliy | [UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD) | ✅ Сдано |
 | Kamil Zaripov | [UP_06_12-05-2026_Kamil_Zaripov_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Kamil_Zaripov_32ISd) | ⏳ Нет parser.py |
 
-_Обновлено: 13.05.2026 11:10 UTC_
+_Обновлено: 13.05.2026 11:30 UTC_
 <!-- STUDENTS_TABLE_END -->
 
 ---
