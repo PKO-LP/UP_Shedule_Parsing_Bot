@@ -34,6 +34,7 @@ REPO_PATTERN = re.compile(
     re.IGNORECASE
 )
 CHECKER_PATH = Path(__file__).parent / 'checker.py'
+RULES_PATH   = Path(__file__).parent / 'check_rules.json'
 
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -102,8 +103,10 @@ def process_repo(repo_name: str) -> dict | None:
             print(f'[{repo_name}] parser.py не найден — пропускаем')
             return make_result('⏳ Нет parser.py')
 
-        # Копируем checker.py в папку репо
+        # Копируем checker.py и check_rules.json в папку репо
         shutil.copy(CHECKER_PATH, Path(tmpdir) / 'checker.py')
+        if RULES_PATH.exists():
+            shutil.copy(RULES_PATH, Path(tmpdir) / 'check_rules.json')
 
         # Запускаем checker
         check_result = subprocess.run(

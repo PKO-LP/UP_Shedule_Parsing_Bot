@@ -1,0 +1,82 @@
+{
+  "task": "UP_06 — Парсер расписания",
+  "steps": [
+    {
+      "id": "Шаг 1",
+      "description": "ID страницы из API",
+      "correct": "response.json()[\"data\"][\"id\"]",
+      "wrong":   "response.json()[\"result\"][\"id\"]",
+      "hint":    "Раскомментируй строку: page_id = response.json()[\"data\"][\"id\"]"
+    },
+    {
+      "id": "Шаг 2",
+      "description": "Список папок из API",
+      "correct": "response.json()[\"data\"][\"folders\"]",
+      "wrong":   "response.json()[\"data\"][\"items\"]",
+      "hint":    "Раскомментируй строку: folders = response.json()[\"data\"][\"folders\"]"
+    },
+    {
+      "id": "Шаг 3",
+      "description": "Поиск папки расписания по названию",
+      "correct": "folder[\"title\"]",
+      "wrong":   "folder[\"id\"]",
+      "hint":    "Раскомментируй строку: if 'расписание учебных' in folder[\"title\"].lower()"
+    },
+    {
+      "id": "Шаг 4 (цикл корпусов)",
+      "description": "Итерация по папкам корпусов",
+      "correct": "schedule_folder[\"folders\"]",
+      "wrong":   "schedule_folder[\"files\"]",
+      "hint":    "Раскомментируй строку: for korpus in schedule_folder[\"folders\"]"
+    },
+    {
+      "id": "Шаг 4 (сравнение корпуса)",
+      "description": "Проверка названия корпуса",
+      "correct": "korpus[\"title\"] != KORPUS",
+      "wrong":   "korpus[\"id\"] != KORPUS",
+      "hint":    "Раскомментируй строку: if korpus[\"title\"] != KORPUS"
+    },
+    {
+      "id": "Шаг 4 (цикл файлов)",
+      "description": "Итерация по файлам корпуса",
+      "correct": "korpus[\"files\"]",
+      "wrong":   "korpus[\"folders\"]",
+      "hint":    "Раскомментируй строку: for f in korpus[\"files\"]"
+    },
+    {
+      "id": "Шаг 4 (course)",
+      "description": "Номер курса из названия файла",
+      "correct": "str(f[\"title\"])[0]",
+      "wrong":   "str(f[\"id\"])[0]",
+      "hint":    "Раскомментируй строку: course = int(str(f[\"title\"])[0])"
+    },
+    {
+      "id": "Шаг 4 (file_id)",
+      "description": "Числовой ID файла",
+      "correct": "'file_id': int(f[\"id\"])",
+      "wrong":   "'file_id': int(f[\"title\"])",
+      "hint":    "Раскомментируй строку: 'file_id': int(f[\"id\"])"
+    },
+    {
+      "id": "Шаг 4 (src)",
+      "description": "Путь к файлу на сервере",
+      "correct": "'src': str(f[\"src\"])",
+      "wrong":   "'src': str(f[\"id\"])",
+      "hint":    "Раскомментируй строку: 'src': str(f[\"src\"])"
+    },
+    {
+      "id": "Шаг 4 (ext)",
+      "description": "Расширение файла",
+      "correct": "f.get(\"ext\",",
+      "wrong":   "f.get(\"id\",",
+      "hint":    "Раскомментируй строку: 'ext': str(f.get(\"ext\", 'xlsx'))"
+    },
+    {
+      "id": "Шаг 4 (url)",
+      "description": "Полный URL файла",
+      "correct": "BASE_URL + str(f[\"src\"])",
+      "wrong":   "BASE_URL + str(f[\"ext\"])",
+      "hint":    "Раскомментируй строку: 'url': BASE_URL + str(f[\"src\"])"
+    }
+  ]
+}
