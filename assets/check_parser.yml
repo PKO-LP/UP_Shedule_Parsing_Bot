@@ -1,0 +1,35 @@
+name: Проверить parser.py
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Клонируем репо студента
+        uses: actions/checkout@v4
+
+      - name: Скачиваем checker.py и check_rules.json
+        run: |
+          curl -sSfL \
+            "https://raw.githubusercontent.com/PKO-LP/UP_Shedule_Parsing_Bot/master/checker.py" \
+            -o checker.py
+          curl -sSfL \
+            "https://raw.githubusercontent.com/PKO-LP/UP_Shedule_Parsing_Bot/master/check_rules.json" \
+            -o check_rules.json
+
+      - name: Запускаем проверку
+        run: python checker.py parser.py
+
+      - name: Сохраняем REVIEW.md в репо
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add REVIEW.md
+          git diff --cached --quiet || git commit -m "auto: обновление REVIEW.md"
+          git push
