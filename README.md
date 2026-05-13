@@ -8,9 +8,9 @@
 | Студент | Репозиторий | Статус |
 |---------|-------------|--------|
 | Vlad Boryushin | [UP_06_12-05-2026_Vlad_Boryushin_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Vlad_Boryushin_32ISd) | ✅ Сдано |
-| Ivan Mikheev | [UP_06_12-05-2026_Ivan_Mikheev_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Ivan_Mikheev_32ISD) | ❌ Есть ошибки |
+| Ivan Mikheev | [UP_06_12-05-2026_Ivan_Mikheev_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Ivan_Mikheev_32ISD) | ✅ Сдано |
 
-_Обновлено: 13.05.2026 03:56 UTC_
+_Обновлено: 13.05.2026 06:52 UTC_
 <!-- STUDENTS_TABLE_END -->
 
 ---
