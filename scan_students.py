@@ -372,11 +372,13 @@ def update_readme_table(results: list[dict]) -> None:
             f'| {grade_mark(r, "demo3")} |'
         )
 
+    peer_block = _peer_compare_block(results, grades)
     bot_table = (
         '| Студент | Репозиторий | Структура | 🔒 Безопасность | Этап 1 🚀 | Этап 2 📅 | Этап 3 💾 |\n'
         '|---------|-------------|-----------|-----------------|-----------|-----------|----------|\n'
         + ('\n'.join(bot_rows) + '\n' if bot_rows else '')
-        + f'\n_Обновлено: {now}_'
+        + f'\n_Обновлено: {now}_\n\n'
+        + peer_block
     )
     new_bot_section = (
         '<!-- BOT_TABLE_START -->\n'
@@ -398,6 +400,58 @@ def update_readme_table(results: list[dict]) -> None:
 
     readme_path.write_text(content, encoding='utf-8')
     print('README.md: таблицы обновлены.')
+
+
+def _stage_level(r: dict, grades: dict) -> int:
+    """Возвращает наивысший пройденный этап (0..3) для студента."""
+    level = 0
+    for i, stage in enumerate(('demo1', 'demo2', 'demo3'), start=1):
+        manual = grades.get(r['repo'], {}).get(stage)
+        auto   = r.get('auto_stages', {}).get(stage, False)
+        if manual is True or auto:
+            level = i
+        else:
+            break
+    return level
+
+
+def _peer_compare_block(results: list[dict], grades: dict) -> str:
+    """
+    Генерирует Markdown-блок сравнения студентов по этапам.
+    Вставляется под bot-таблицей.
+    """
+    _LABELS = {
+        3: '💾 Этап 3 — Кеширование',
+        2: '📅 Этап 2 — Расписание',
+        1: '🚀 Этап 1 — Бот запущен',
+        0: '⏳ Ещё не начали',
+    }
+    # Группируем: уровень → список имён
+    groups: dict[int, list[str]] = {0: [], 1: [], 2: [], 3: []}
+    for r in results:
+        lvl = _stage_level(r, grades)
+        groups[lvl].append(f'{r["first_name"]} {r["last_name"]}')
+
+    lines = ['### 📊 Распределение по этапам', '']
+    for lvl in (3, 2, 1, 0):
+        names = groups[lvl]
+        if not names:
+            continue
+        names_str = ', '.join(names)
+        lines.append(f'**{_LABELS[lvl]}** — {names_str} ({len(names)})')
+
+    # Сравнение: ищем студентов на одном уровне
+    lines += ['', '> **На одном уровне:**']
+    any_match = False
+    for lvl in (3, 2, 1):
+        names = groups[lvl]
+        if len(names) >= 2:
+            any_match = True
+            lines.append(f'> - {_LABELS[lvl].split(" — ")[0]}: {", ".join(names)}')
+    if not any_match:
+        lines.append('> - Все студенты пока на разных этапах')
+
+    return '\n'.join(lines) + '\n'
 
 
 def main() -> None:
