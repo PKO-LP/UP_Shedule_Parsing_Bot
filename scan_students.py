@@ -150,6 +150,53 @@ def check_bot_structure(tmpdir: str) -> tuple[str, str]:
     return struct, security
 
 
+def auto_detect_stages(tmpdir: str) -> dict[str, bool]:
+    """
+    Статический анализ репо студента — автодетект выполненных этапов бота.
+
+    Этап 1 (demo1): bot.py есть + TG-библиотека + /start обработчик
+    Этап 2 (demo2): есть обращение к API расписания или подключён parser.py
+    Этап 3 (demo3): есть кеширование (json.dump/load + файл/переменная кеша)
+    """
+    base = Path(tmpdir)
+    all_py = [f for f in base.glob('**/*.py') if f.is_file()]
+    all_code = '\n'.join(
+        f.read_text(encoding='utf-8', errors='ignore') for f in all_py
+    )
+    code_lower = all_code.lower()
+
+    # ── Этап 1: бот запущен, отвечает на /start ──────────────────────────────
+    has_bot_file = bool(
+        list(base.glob('bot.py')) + list(base.glob('main.py')) +
+        list(base.glob('**/bot.py')) + list(base.glob('**/main.py'))
+    )
+    req_files = list(base.glob('requirements.txt')) + list(base.glob('**/requirements.txt'))
+    has_tg_lib = False
+    if req_files:
+        req_text = req_files[0].read_text(encoding='utf-8', errors='ignore').lower()
+        has_tg_lib = any(lib in req_text for lib in
+                         ['aiogram', 'telebot', 'python-telegram-bot', 'telegram'])
+    has_start = 'start' in code_lower
+    demo1 = has_bot_file and has_tg_lib and has_start
+
+    # ── Этап 2: бот выводит расписание ───────────────────────────────────────
+    schedule_keywords = [
+        'spo-13', 'raspisanie', 'расписание', 'schedule',
+        'folder_and_file', 'parse_schedule', 'parser.py',
+        'import parser', 'from parser'
+    ]
+    demo2 = demo1 and any(kw in code_lower for kw in schedule_keywords)
+
+    # ── Этап 3: кеширование работает ─────────────────────────────────────────
+    cache_keywords = [
+        'json.dump', 'json.load', 'cache', 'кеш',
+        'is_new_file', 'cache_file', 'cache_index'
+    ]
+    demo3 = demo2 and any(kw in code_lower for kw in cache_keywords)
+
+    return {'demo1': demo1, 'demo2': demo2, 'demo3': demo3}
+
+
 def load_grades() -> dict:
     """Загружает ручные отметки этапов из grades.json."""
     if not GRADES_PATH.exists():
@@ -165,10 +212,12 @@ def process_repo(repo_name: str) -> dict | None:
     first_name = parts[3] if len(parts) >= 5 else '?'
     last_name  = parts[4] if len(parts) >= 5 else '?'
 
-    def make_result(status: str, bot_struct: str = '—', bot_security: str = '—') -> dict:
+    def make_result(status: str, bot_struct: str = '—', bot_security: str = '—',
+                    auto_stages: dict | None = None) -> dict:
         return {'repo': repo_name, 'first_name': first_name,
                 'last_name': last_name, 'status': status,
-                'bot_struct': bot_struct, 'bot_security': bot_security}
+                'bot_struct': bot_struct, 'bot_security': bot_security,
+                'auto_stages': auto_stages or {}}
 
     repo_url = f'https://x-access-token:{TOKEN}@github.com/{ORG}/{repo_name}.git'
 
@@ -183,11 +232,12 @@ def process_repo(repo_name: str) -> dict | None:
             return make_result('❓ Ошибка')
 
         bot_struct, bot_security = check_bot_structure(tmpdir)
+        auto_stages = auto_detect_stages(tmpdir)
 
         parser_path = Path(tmpdir) / 'parser.py'
         if not parser_path.exists():
             print(f'[{repo_name}] parser.py не найден — пропускаем')
-            return make_result('⏳ Нет parser.py', bot_struct, bot_security)
+            return make_result('⏳ Нет parser.py', bot_struct, bot_security, auto_stages)
 
         # Копируем checker.py и check_rules.json в папку репо
         shutil.copy(CHECKER_PATH, Path(tmpdir) / 'checker.py')
@@ -203,7 +253,7 @@ def process_repo(repo_name: str) -> dict | None:
         review_path = Path(tmpdir) / 'REVIEW.md'
         if not review_path.exists():
             print(f'[{repo_name}] REVIEW.md не создан — пропускаем')
-            return make_result('❓ Ошибка', bot_struct)
+            return make_result('❓ Ошибка', bot_struct, bot_security, auto_stages)
 
         # Настраиваем git
         subprocess.run(['git', 'config', 'user.name', 'teacher-bot[bot]'],
@@ -243,7 +293,7 @@ def process_repo(repo_name: str) -> dict | None:
         )
         if diff.returncode == 0:
             print(f'[{repo_name}] REVIEW.md не изменился')
-            return make_result(status)
+            return make_result(status, bot_struct, bot_security, auto_stages)
 
         commit_msg = f'auto-review: {errors_word} в parser.py [skip ci]'
         subprocess.run(['git', 'commit', '-m', commit_msg],
@@ -255,7 +305,7 @@ def process_repo(repo_name: str) -> dict | None:
         else:
             print(f'[{repo_name}] ❌ Ошибка push: {push.stderr}')
 
-        return make_result(status, bot_struct, bot_security)
+        return make_result(status, bot_struct, bot_security, auto_stages)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -270,9 +320,15 @@ def update_readme_table(results: list[dict]) -> None:
     grades  = load_grades()
     now     = datetime.datetime.utcnow().strftime('%d.%m.%Y %H:%M UTC')
 
-    def grade_mark(repo: str, stage: str) -> str:
-        g = grades.get(repo, {})
-        return '✅' if g.get(stage) else '⏳'
+    def grade_mark(r: dict, stage: str) -> str:
+        # Сначала смотрим ручной оверрайд в grades.json
+        manual = grades.get(r['repo'], {}).get(stage)
+        if manual is True:
+            return '✅'
+        # Затем автодетект
+        if r.get('auto_stages', {}).get(stage):
+            return '🔍'
+        return '⏳'
 
     sorted_results = sorted(results, key=lambda x: x['last_name'])
 
@@ -311,9 +367,9 @@ def update_readme_table(results: list[dict]) -> None:
             f'| [{r["repo"]}]({repo_url}) '
             f'| {r.get("bot_struct", "—")} '
             f'| {r.get("bot_security", "—")} '
-            f'| {grade_mark(r["repo"], "demo1")} '
-            f'| {grade_mark(r["repo"], "demo2")} '
-            f'| {grade_mark(r["repo"], "demo3")} |'
+            f'| {grade_mark(r, "demo1")} '
+            f'| {grade_mark(r, "demo2")} '
+            f'| {grade_mark(r, "demo3")} |'
         )
 
     bot_table = (
