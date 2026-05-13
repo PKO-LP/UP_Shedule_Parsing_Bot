@@ -27,7 +27,7 @@
 | Gizatulin Vitaliy | [UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD) | ⏳ Нет бот-файла | — | ⏳ | ⏳ | ⏳ |
 | Kamil Zaripov | [UP_06_12-05-2026_Kamil_Zaripov_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Kamil_Zaripov_32ISd) | ⏳ Нет бот-файла | — | ⏳ | ⏳ | ⏳ |
 
-_Обновлено: 13.05.2026 18:06 UTC_
+_Обновлено: 13.05.2026 21:39 UTC_
 
 ### 📈 Прогресс группы к ТЗ — 43%
 
@@ -62,7 +62,7 @@ _Обновлено: 13.05.2026 18:06 UTC_
 | Gizatulin Vitaliy | [UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD](https://github.com/PKO-LP/UP_06_12-05-2026_Gizatulin_Vitaliy_32ISD) | ✅ Сдано |
 | Kamil Zaripov | [UP_06_12-05-2026_Kamil_Zaripov_32ISd](https://github.com/PKO-LP/UP_06_12-05-2026_Kamil_Zaripov_32ISd) | ⏳ Нет parser.py |
 
-_Обновлено: 13.05.2026 18:06 UTC_
+_Обновлено: 13.05.2026 21:39 UTC_
 <!-- STUDENTS_TABLE_END -->
 
 ---
