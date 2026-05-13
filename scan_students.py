@@ -35,7 +35,11 @@ REPO_PATTERN = re.compile(
 )
 CHECKER_PATH = Path(__file__).parent / 'checker.py'
 RULES_PATH   = Path(__file__).parent / 'check_rules.json'
-GRADES_PATH  = Path(__file__).parent / 'grades.json'
+GRADES_PATH    = Path(__file__).parent / 'grades.json'
+SNAPSHOT_PATH  = Path(__file__).parent / 'stages_snapshot.json'
+
+_STAGE_KEYS   = ('demo1', 'demo2', 'demo3')
+_STAGE_LABELS = ('🚀 Этап 1', '📅 Этап 2', '💾 Этап 3')
 
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -111,41 +115,50 @@ def check_bot_structure(tmpdir: str) -> tuple[str, str]:
     """
     Автоматическая проверка структуры бота в репо студента.
     Возвращает (статус_структуры, статус_безопасности).
+    Работает с любым именем файла бота (bot.py / main.py / app.py / etc.)
     """
-    base = Path(tmpdir)
+    base     = Path(tmpdir)
+    all_py   = [f for f in base.glob('**/*.py') if f.is_file()]
+    all_code = '\n'.join(f.read_text(encoding='utf-8', errors='ignore') for f in all_py)
+    code_low = all_code.lower()
 
-    # Ищем файл бота рекурсивно
-    bot_files = (list(base.glob('bot.py')) + list(base.glob('main.py'))
-                 + list(base.glob('**/bot.py')) + list(base.glob('**/main.py'))
-                 + list(base.glob('**/*bot*.py')))
-    bot_files = [f for f in bot_files if f.is_file()]
+    TG_LIBS = ['aiogram', 'telebot', 'python-telegram-bot', 'telegram']
 
-    if not bot_files:
-        return '⏳ Нет bot.py', '—'
+    # Ищем любой .py с импортом TG-библиотеки — это и есть бот-файл
+    tg_file = None
+    for f in all_py:
+        text = f.read_text(encoding='utf-8', errors='ignore').lower()
+        if any(lib in text for lib in TG_LIBS):
+            tg_file = f
+            break
 
-    # Проверяем requirements.txt
+    if tg_file is None:
+        # Нет ни одного файла с TG-импортом
+        # Проверяем хотя бы requirements.txt
+        req_files = list(base.glob('requirements.txt')) + list(base.glob('**/requirements.txt'))
+        if not req_files:
+            return '⏳ Нет бот-файла', '—'
+        req_text = req_files[0].read_text(encoding='utf-8', errors='ignore').lower()
+        if not any(lib in req_text for lib in TG_LIBS):
+            return '⏳ Нет бот-файла', '—'
+        # requirements есть, но в коде импорта нет — скорее всего пустой бот
+        return '❌ Нет TG-импорта в коде', '—'
+
+    # TG-файл найден — дальше стандартные проверки
     req_files = list(base.glob('requirements.txt')) + list(base.glob('**/requirements.txt'))
     if not req_files:
         struct = '❌ Нет requirements.txt'
+    elif not any(lib in req_files[0].read_text(encoding='utf-8', errors='ignore').lower()
+                 for lib in TG_LIBS):
+        struct = '❌ Нет TG-библиотеки'
+    elif 'start' not in code_low:
+        struct = '❌ Нет /start'
     else:
-        req_text = req_files[0].read_text(encoding='utf-8', errors='ignore').lower()
-        tg_libs = ['aiogram', 'telebot', 'python-telegram-bot', 'telegram']
-        if not any(lib in req_text for lib in tg_libs):
-            struct = '❌ Нет TG-библиотеки'
-        else:
-            # Проверяем наличие /start
-            all_code = '\n'.join(
-                f.read_text(encoding='utf-8', errors='ignore')
-                for f in base.glob('**/*.py') if f.is_file()
-            )
-            struct = '✅ Структура OK' if 'start' in all_code.lower() else '❌ Нет /start'
+        bot_name = tg_file.relative_to(base).as_posix()
+        struct = f'✅ OK ({bot_name})'
 
-    # Проверяем хардкод токена (безопасность) — отдельно от структуры
     leaked_file = _check_token_leak(base)
-    if leaked_file:
-        security = f'🔑 Токен в {leaked_file}!'
-    else:
-        security = '✅ Токен OK'
+    security = f'🔑 Токен в {leaked_file}!' if leaked_file else '✅ Токен OK'
 
     return struct, security
 
@@ -166,18 +179,20 @@ def auto_detect_stages(tmpdir: str) -> dict[str, bool]:
     code_lower = all_code.lower()
 
     # ── Этап 1: бот запущен, отвечает на /start ──────────────────────────────
-    has_bot_file = bool(
-        list(base.glob('bot.py')) + list(base.glob('main.py')) +
-        list(base.glob('**/bot.py')) + list(base.glob('**/main.py'))
+    # Любой .py с TG-импортом считается бот-файлом (bot.py / main.py / app.py / etc.)
+    tg_libs = ['aiogram', 'telebot', 'python-telegram-bot', 'telegram']
+    has_tg_in_code = any(
+        lib in f.read_text(encoding='utf-8', errors='ignore').lower()
+        for f in all_py for lib in tg_libs
     )
     req_files = list(base.glob('requirements.txt')) + list(base.glob('**/requirements.txt'))
-    has_tg_lib = False
-    if req_files:
-        req_text = req_files[0].read_text(encoding='utf-8', errors='ignore').lower()
-        has_tg_lib = any(lib in req_text for lib in
-                         ['aiogram', 'telebot', 'python-telegram-bot', 'telegram'])
-    has_start = 'start' in code_lower
-    demo1 = has_bot_file and has_tg_lib and has_start
+    has_tg_in_req = bool(req_files) and any(
+        lib in req_files[0].read_text(encoding='utf-8', errors='ignore').lower()
+        for lib in tg_libs
+    )
+    has_tg_lib = has_tg_in_code or has_tg_in_req
+    has_start  = 'start' in code_lower
+    demo1 = has_tg_lib and has_start
 
     # ── Этап 2: бот выводит расписание ───────────────────────────────────────
     schedule_keywords = [
@@ -204,6 +219,20 @@ def load_grades() -> dict:
     with open(GRADES_PATH, encoding='utf-8') as f:
         data = json.load(f)
     return data.get('grades', {})
+
+
+def load_snapshot() -> dict:
+    """Загружает снимок этапов с прошлого скана для сравнения."""
+    if not SNAPSHOT_PATH.exists():
+        return {}
+    with open(SNAPSHOT_PATH, encoding='utf-8') as f:
+        return json.load(f)
+
+
+def save_snapshot(snapshot: dict) -> None:
+    """Сохраняет текущие этапы как базу для следующего скана."""
+    with open(SNAPSHOT_PATH, 'w', encoding='utf-8') as f:
+        json.dump(snapshot, f, ensure_ascii=False, indent=2)
 
 
 def process_repo(repo_name: str) -> dict | None:
@@ -316,16 +345,15 @@ def update_readme_table(results: list[dict]) -> None:
     if not readme_path.exists():
         return
 
-    content = readme_path.read_text(encoding='utf-8')
-    grades  = load_grades()
-    now     = datetime.datetime.utcnow().strftime('%d.%m.%Y %H:%M UTC')
+    content      = readme_path.read_text(encoding='utf-8')
+    grades       = load_grades()
+    prev_snapshot = load_snapshot()
+    now          = datetime.datetime.utcnow().strftime('%d.%m.%Y %H:%M UTC')
 
     def grade_mark(r: dict, stage: str) -> str:
-        # Сначала смотрим ручной оверрайд в grades.json
         manual = grades.get(r['repo'], {}).get(stage)
         if manual is True:
             return '✅'
-        # Затем автодетект
         if r.get('auto_stages', {}).get(stage):
             return '🔍'
         return '⏳'
@@ -372,13 +400,13 @@ def update_readme_table(results: list[dict]) -> None:
             f'| {grade_mark(r, "demo3")} |'
         )
 
-    peer_block = _peer_compare_block(results, grades)
+    progress_block = _progress_block(results, grades, prev_snapshot, now)
     bot_table = (
         '| Студент | Репозиторий | Структура | 🔒 Безопасность | Этап 1 🚀 | Этап 2 📅 | Этап 3 💾 |\n'
         '|---------|-------------|-----------|-----------------|-----------|-----------|----------|\n'
         + ('\n'.join(bot_rows) + '\n' if bot_rows else '')
         + f'\n_Обновлено: {now}_\n\n'
-        + peer_block
+        + progress_block
     )
     new_bot_section = (
         '<!-- BOT_TABLE_START -->\n'
@@ -399,57 +427,116 @@ def update_readme_table(results: list[dict]) -> None:
         )
 
     readme_path.write_text(content, encoding='utf-8')
+
+    # Сохраняем снимок текущих этапов для следующего скана
+    new_snapshot = {
+        r['repo']: _effective_stages(r, grades)
+        for r in results
+    }
+    save_snapshot(new_snapshot)
     print('README.md: таблицы обновлены.')
 
 
-def _stage_level(r: dict, grades: dict) -> int:
-    """Возвращает наивысший пройденный этап (0..3) для студента."""
-    level = 0
-    for i, stage in enumerate(('demo1', 'demo2', 'demo3'), start=1):
+def _effective_stages(r: dict, grades: dict) -> dict[str, bool]:
+    """Итоговые этапы студента: ручной grades.json имеет приоритет над автодетектом."""
+    out = {}
+    for stage in _STAGE_KEYS:
         manual = grades.get(r['repo'], {}).get(stage)
         auto   = r.get('auto_stages', {}).get(stage, False)
-        if manual is True or auto:
+        out[stage] = bool(manual is True or auto)
+    return out
+
+
+def _stage_level(r: dict, grades: dict) -> int:
+    """Наивысший последовательный пройденный этап (0..3)."""
+    eff = _effective_stages(r, grades)
+    level = 0
+    for i, stage in enumerate(_STAGE_KEYS, start=1):
+        if eff[stage]:
             level = i
         else:
             break
     return level
 
 
-def _peer_compare_block(results: list[dict], grades: dict) -> str:
-    """
-    Генерирует Markdown-блок сравнения студентов по этапам.
-    Вставляется под bot-таблицей.
-    """
-    _LABELS = {
-        3: '💾 Этап 3 — Кеширование',
-        2: '📅 Этап 2 — Расписание',
-        1: '🚀 Этап 1 — Бот запущен',
+def _progress_block(results: list[dict], grades: dict, prev: dict, now: str) -> str:
+    """Генерирует блок прогресса: новые достижения + прогресс-бар + распределение."""
+    n_total = len(results) * len(_STAGE_KEYS)
+
+    # Эффективные этапы для каждого студента
+    eff = {r['repo']: _effective_stages(r, grades) for r in results}
+
+    # Что нового с прошлого скана
+    new_ach: dict[str, list[str]] = {}
+    for r in results:
+        repo = r['repo']
+        name = f'{r["first_name"]} {r["last_name"]}'
+        for stage, label in zip(_STAGE_KEYS, _STAGE_LABELS):
+            was  = prev.get(repo, {}).get(stage, False)
+            is_now = eff[repo][stage]
+            if is_now and not was:
+                new_ach.setdefault(name, []).append(label)
+
+    # Общий прогресс
+    n_done  = sum(1 for e in eff.values() for v in e.values() if v)
+    pct     = round(n_done / n_total * 100) if n_total else 0
+    filled  = round(pct / 5)
+    bar     = '█' * filled + '░' * (20 - filled)
+
+    lines: list[str] = []
+
+    # ── Новые достижения ────────────────────────────────────────────────────
+    if new_ach:
+        lines += [f'### 🆕 Новые достижения — {now}', '']
+        for name, stages_list in new_ach.items():
+            lines.append(f'- **{name}** → {", ".join(stages_list)}')
+        lines.append('')
+
+    # ── Групповые вехи ──────────────────────────────────────────────────────
+    for stage, label in zip(_STAGE_KEYS, _STAGE_LABELS):
+        all_now  = results and all(eff[r['repo']][stage] for r in results)
+        all_prev = results and all(prev.get(r['repo'], {}).get(stage, False) for r in results)
+        if all_now and not all_prev:
+            lines += [f'> 🏆 Вся группа сдала **{label}**!', '']
+
+    # ── Прогресс к ТЗ ───────────────────────────────────────────────────────
+    lines += [
+        f'### 📈 Прогресс группы к ТЗ — {pct}%',
+        '',
+        f'`{bar}` {n_done}/{n_total} этапов',
+        '',
+    ]
+
+    # Мини-прогресс по каждому студенту
+    for r in sorted(results, key=lambda x: x['last_name']):
+        repo = r['repo']
+        name = f'{r["first_name"]} {r["last_name"]}'
+        icons   = ''.join('✅' if eff[repo][s] else '⬜' for s in _STAGE_KEYS)
+        s_done  = sum(1 for v in eff[repo].values() if v)
+        s_pct   = round(s_done / len(_STAGE_KEYS) * 100)
+        # Пометить тех, у кого новое достижение
+        badge = ' 🆕' if name in new_ach else ''
+        lines.append(f'- {icons} **{name}** — {s_pct}%{badge}')
+
+    lines.append('')
+
+    # ── Распределение по уровням ─────────────────────────────────────────────
+    _LEVEL_LABELS = {
+        3: '💾 Уровень 3 — Кеширование',
+        2: '📅 Уровень 2 — Расписание',
+        1: '🚀 Уровень 1 — Бот запущен',
         0: '⏳ Ещё не начали',
     }
-    # Группируем: уровень → список имён
-    groups: dict[int, list[str]] = {0: [], 1: [], 2: [], 3: []}
+    level_groups: dict[int, list[str]] = {}
     for r in results:
         lvl = _stage_level(r, grades)
-        groups[lvl].append(f'{r["first_name"]} {r["last_name"]}')
+        level_groups.setdefault(lvl, []).append(f'{r["first_name"]} {r["last_name"]}')
 
-    lines = ['### 📊 Распределение по этапам', '']
+    lines.append('**Распределение:**')
     for lvl in (3, 2, 1, 0):
-        names = groups[lvl]
-        if not names:
-            continue
-        names_str = ', '.join(names)
-        lines.append(f'**{_LABELS[lvl]}** — {names_str} ({len(names)})')
-
-    # Сравнение: ищем студентов на одном уровне
-    lines += ['', '> **На одном уровне:**']
-    any_match = False
-    for lvl in (3, 2, 1):
-        names = groups[lvl]
-        if len(names) >= 2:
-            any_match = True
-            lines.append(f'> - {_LABELS[lvl].split(" — ")[0]}: {", ".join(names)}')
-    if not any_match:
-        lines.append('> - Все студенты пока на разных этапах')
+        names = level_groups.get(lvl, [])
+        if names:
+            lines.append(f'> {_LEVEL_LABELS[lvl]}: {", ".join(names)} ({len(names)})')
 
     return '\n'.join(lines) + '\n'
 
