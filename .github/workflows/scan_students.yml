@@ -31,13 +31,13 @@ jobs:
           # Шаблон имени: UP_06_12-05-2026_Name_Surname_32ISd
           REPO_PATTERN: '^UP_06_\d{2}-\d{2}-\d{4}_[A-Za-z]+_[A-Za-z]+_32ISd$'
         run: |
+          git pull
           python scan_students.py
 
       - name: Зафиксировать обновление таблицы студентов
         run: |
           git config user.name "teacher-bot[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase
           git add README.md
           git diff --cached --quiet || git commit -m "auto: обновление таблицы студентов [skip ci]"
           git push
