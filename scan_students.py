@@ -280,8 +280,11 @@ def update_readme_table(results: list[dict]) -> None:
             new_bot_section, content, flags=re.DOTALL
         )
     else:
-        # Добавляем секцию в конец файла
-        content = content.rstrip() + '\n\n---\n\n## Прогресс — Telegram-бот\n\n' + new_bot_section + '\n'
+        # Вставляем перед таблицей парсера
+        content = content.replace(
+            '## Прогресс — Парсер',
+            '## Прогресс — Telegram-бот\n\n' + new_bot_section + '\n\n---\n\n## Прогресс — Парсер'
+        )
 
     readme_path.write_text(content, encoding='utf-8')
     print('README.md: таблицы обновлены.')
